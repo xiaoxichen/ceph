@@ -1,20 +1,78 @@
 #!/usr/bin/python
+'''
+A backend for PowerDNS to direct RADOS Gateway bucket traffic to the correct regions.
+
+For example, two regions exist, US and EU.
+
+EU: o.myobjects.eu
+US: o.myobjects.us
+
+A global domain o.myobjects.com exists.
+
+Bucket 'foo' exists in the region EU and 'bar' in US.
+
+foo.o.myobjects.com will return a CNAME to foo.o.myobjects.eu
+bar.o.myobjects.com will return a CNAME to foo.o.myobjects.us
+
+The HTTP Remote Backend from PowerDNS is used in this case: http://doc.powerdns.com/html/remotebackend.html
+
+PowerDNS must be compiled with Remote HTTP backend support enabled, this is not default.
+
+Configuration for PowerDNS:
+
+launch=remote
+remote-connection-string=http:url=http://localhost:6780/dns
+
+Usage for this backend is showed by invoking with --help. No configuration is currently supported, all parameters
+are passed on as arguments.
+
+The region map can be obtained by executing: radosgw-admin regionmap get > regionmap.json
+
+Note: The RGW Admin API doesn't support fetching the regionmap, this will be added later.
+
+Example for running the backend:
+./pdns-backend-rgw.py --dns-zone o.myobjects.com \
+--rgw-endpoint rgw1.machines.myobjects.com \
+--rgw-admin-entry admin \
+--rgw-access-key ACCESS_KEY \
+--rgw-secret-key SUPER_SECRET_KEY \
+--region-map /root/regionmap.json
+
+The ACCESS and SECRET key pair requires the caps "metadata=read"
+
+To test:
+
+$ curl -X GET http://localhost:6780/dns/lookup/foo.o.myobjects.com/ANY
+
+Should return something like:
+
+{
+ "result": [
+  {
+   "content": "foo.o.myobjects.eu",
+   "qtype": "CNAME",
+   "qname": "foo.o.myobjects.com",
+   "ttl": 60
+  }
+ ]
+}
+
+'''
+
+# Copyright: Wido den Hollander <wido@42on.com> 2014
+# License:   LGPL2.1
 
 from flask import abort, Flask, request, Response
 from hashlib import sha1 as sha
 from time import gmtime, strftime
-import json
-import subprocess
+from urlparse import urlparse
 import argparse
-import pycurl
-import urllib
 import base64
 import hmac
+import json
+import pycurl
 import StringIO
-
-# Map region names to hostnames
-region_map = {}
-region_map.update({'eu': 'o.myobject.eu'})
+import urllib
 
 # The Flask App
 app = Flask(__name__)
@@ -24,6 +82,16 @@ app = Flask(__name__)
 def abort_early():
     return json.dumps({'result': 'true'}) + "\n"
 
+# This should support multiple endpoints per region!
+def parse_region_map(map):
+    regions = {}
+    for region in map['regions']:
+        url = urlparse(region['val']['endpoints'][0])
+        regions.update({region['key']: url.netloc})
+
+    return regions
+
+# Generate the Signature string for S3 Authorization with the RGW Admin API
 def generate_signature(method, date, uri, headers=None):
     sign = "%s\n\n" % method
 
@@ -39,6 +107,7 @@ def generate_signature(method, date, uri, headers=None):
 def generate_auth_header(signature):
     return str("AWS %s:%s" % (config['rgw']['access_key'], signature.decode('utf-8')))
 
+# Do a HTTP request to the RGW Admin API
 def do_rgw_request(uri, params=None, data=None, headers=None):
     if headers == None:
         headers = {}
@@ -53,7 +122,7 @@ def do_rgw_request(uri, params=None, data=None, headers=None):
 
     c = pycurl.Curl()
     b = StringIO.StringIO()
-    url = "http://" + config['rgw']['endpoint'] + "/" + uri + "?format=json"
+    url = "http://" + config['rgw']['endpoint'] + "/" + config['rgw']['admin_entry'] + "/" + uri + "?format=json"
     if query != None:
         url += "&" + urllib.quote_plus(query)
 
@@ -74,7 +143,6 @@ def do_rgw_request(uri, params=None, data=None, headers=None):
 
     return None
 
-# Call radosgw-admin to get bucket metadata information
 def get_radosgw_metadata(key):
     return do_rgw_request('metadata', {'key': key})
 
@@ -86,7 +154,7 @@ def get_bucket_region(bucket):
     region = meta_instance['data']['bucket_info']['region']
     return region
 
-# Returns the correct host for the bucket based on the region
+# Returns the correct host for the bucket based on the regionmap
 def get_bucket_host(bucket):
     region = get_bucket_region(bucket)
     return bucket + "." + region_map[region]
@@ -94,7 +162,7 @@ def get_bucket_host(bucket):
 @app.route('/')
 def index():
     abort(404)
- 
+
 @app.route("/dns/lookup/<qname>/<qtype>")
 def bucket_location(qname, qtype):
     if len(qname) == 0:
@@ -106,8 +174,8 @@ def bucket_location(qname, qtype):
 
     bucket = split[0]
     zone = split[1]
- 
-    # If the received qname doesn't match our zone abort
+
+    # If the received qname doesn't match our zone we abort
     if zone != config['dns']['zone']:
         return abort_early()
 
@@ -115,11 +183,11 @@ def bucket_location(qname, qtype):
     if qtype == "MX":
         return abort_early()
 
-    # The basic result we always return
+    # The basic result we always return, this is what PowerDNS expects.
     response = {'result': 'true'}
     result = {}
 
-    # A hardcoded SOA response
+    # A hardcoded SOA response (FIXME!)
     if qtype == "SOA":
         result.update({'qtype': qtype})
         result.update({'qname': qname})
@@ -137,7 +205,7 @@ def bucket_location(qname, qtype):
         res.append(result)
         response['result'] = res
 
-    return json.dumps(response) + "\n"
+    return json.dumps(response, indent=1) + "\n"
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -150,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument("--rgw-admin-entry", help="The RGW admin entry.", action="store", default="admin")
     parser.add_argument("--rgw-access-key", help="The RGW access key.", action="store", default="access")
     parser.add_argument("--rgw-secret-key", help="The RGW secret key.", action="store", default="secret")
+    parser.add_argument("--region-map", help="The RGW JSON region map.", action="store", default="region-map.json")
     parser.add_argument("--debug", help="Enable debugging.", action="store_true")
 
     args = parser.parse_args()
@@ -169,8 +238,12 @@ if __name__ == '__main__':
             'access_key': args.rgw_access_key,
             'secret_key': args.rgw_secret_key
         },
+        'region_map': args.region_map,
         'debug': args.debug
     }
+
+    with open(config['region_map'], 'r') as region_map_file:
+        region_map = parse_region_map(json.loads(region_map_file.read()))
 
     app.debug = config['debug']
     app.run(host=config['listen']['addr'], port=config['listen']['port'])
