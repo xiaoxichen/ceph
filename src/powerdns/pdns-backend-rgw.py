@@ -218,7 +218,6 @@ if __name__ == '__main__':
     parser.add_argument("--rgw-admin-entry", help="The RGW admin entry.", action="store", default="admin")
     parser.add_argument("--rgw-access-key", help="The RGW access key.", action="store", default="access")
     parser.add_argument("--rgw-secret-key", help="The RGW secret key.", action="store", default="secret")
-    parser.add_argument("--region-map", help="The RGW JSON region map.", action="store", default="region-map.json")
     parser.add_argument("--debug", help="Enable debugging.", action="store_true")
 
     args = parser.parse_args()
@@ -238,12 +237,10 @@ if __name__ == '__main__':
             'access_key': args.rgw_access_key,
             'secret_key': args.rgw_secret_key
         },
-        'region_map': args.region_map,
         'debug': args.debug
     }
 
-    with open(config['region_map'], 'r') as region_map_file:
-        region_map = parse_region_map(json.loads(region_map_file.read()))
+    region_map = parse_region_map(do_rgw_request('config'))
 
     app.debug = config['debug']
     app.run(host=config['listen']['addr'], port=config['listen']['port'])
