@@ -529,8 +529,8 @@ void EMetaBlob::fullbit::update_inode(MDS *mds, CInode *in)
   in->xattrs = xattrs;
   if (in->inode.is_dir()) {
     if (!(in->dirfragtree == dirfragtree)) {
-      dout(10) << "EMetaBlob::fullbit::update_inode dft " << in->dirfragtree << " -> "
-	       << dirfragtree << " on " << *in << dendl;
+//      dout(10) << "EMetaBlob::fullbit::update_inode dft " << in->dirfragtree << " -> "
+//	       << dirfragtree << " on " << *in << dendl;
       in->dirfragtree = dirfragtree;
       in->force_dirfrags();
     }
@@ -1078,7 +1078,7 @@ void EMetaBlob::replay(MDS *mds, LogSegment *logseg, MDSlaveUpdate *slaveup)
 	if (p->is_dirty()) in->_mark_dirty(logseg);
 	dout(10) << "EMetaBlob.replay added " << *in << dendl;
       } else {
-	p->update_inode(mds, in);
+	p->update_inode(in);
 	if (dn->get_linkage()->get_inode() != in && in->get_parent_dn()) {
 	  dout(10) << "EMetaBlob.replay unlinking " << *in << dendl;
 	  unlinked[in] = in->get_parent_dir();

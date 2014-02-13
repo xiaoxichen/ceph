@@ -1411,6 +1411,9 @@ public:
 void MDS::replay_done()
 {
   dout(1) << "replay_done" << (standby_replaying ? " (as standby)" : "") << dendl;
+  dout(1) << "replay done state="
+      << ceph_mds_state_name(state) << "/"
+      << ceph_mds_state_name(want_state) << dendl;
 
   if (is_oneshot_replay()) {
     dout(2) << "hack.  journal looks ok.  shutting down." << dendl;

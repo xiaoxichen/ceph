@@ -42,9 +42,12 @@ MDSUtility::~MDSUtility()
   assert(waiting_for_mds_map == NULL);
 }
 
+#define BUILTIN_OBJECTER
 
 int MDSUtility::init()
 {
+  dout(4) << __func__ << dendl;
+
   // Initialize Messenger
   int r = messenger->bind(g_conf->public_addr);
   if (r < 0)
@@ -66,13 +69,14 @@ int MDSUtility::init()
   messenger->set_myname(entity_name_t::CLIENT(whoami.v));
 
   // Initialize Objecter and wait for OSD map
-  objecter = new Objecter(g_ceph_context, messenger, monc, osdmap, lock, timer);
+#ifdef BUILTIN_OBJECTER
   objecter->set_client_incarnation(0);
   objecter->init_unlocked();
   lock.Lock();
   objecter->init_locked();
   lock.Unlock();
   objecter->wait_for_osd_map();
+#endif
   timer.init();
 
   // Wait for MDS map
@@ -100,12 +104,18 @@ int MDSUtility::init()
 
 void MDSUtility::shutdown()
 {
+  dout(4) << __func__ << dendl;
+
   lock.Lock();
   timer.shutdown();
+#ifdef BUILTIN_OBJECTER
   objecter->shutdown_locked();
+#endif
   lock.Unlock();
+#ifdef BUILTIN_OBJECTER
   objecter->shutdown_unlocked();
   monc->shutdown();
+#endif
   messenger->shutdown();
   messenger->wait();
 }
@@ -114,15 +124,26 @@ void MDSUtility::shutdown()
 bool MDSUtility::ms_dispatch(Message *m)
 {
    Mutex::Locker locker(lock);
+   dout(10) << __func__ << " type: " << m->get_type_name() << dendl;
    switch (m->get_type()) {
    case CEPH_MSG_OSD_OPREPLY:
+#ifdef BUILTIN_OBJECTER
      objecter->handle_osd_op_reply((MOSDOpReply *)m);
+#else
+     return false;
+#endif
      break;
    case CEPH_MSG_OSD_MAP:
+#ifdef BUILTIN_OBJECTER
      objecter->handle_osd_map((MOSDMap*)m);
+#else
+     return false;
+#endif
      break;
    case CEPH_MSG_MDS_MAP:
      handle_mds_map((MMDSMap*)m);
+     // Ensure anyone else can always see maps
+     return false;
      break;
    default:
      return false;
