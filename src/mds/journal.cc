@@ -523,7 +523,7 @@ void EMetaBlob::fullbit::generate_test_instances(list<EMetaBlob::fullbit*>& ls)
   ls.push_back(sample);
 }
 
-void EMetaBlob::fullbit::update_inode(MDS *mds, CInode *in)
+void EMetaBlob::fullbit::update_inode(CInode *in)
 {
   in->inode = inode;
   in->xattrs = xattrs;
@@ -934,7 +934,7 @@ void EMetaBlob::replay(MDS *mds, LogSegment *logseg, MDSlaveUpdate *slaveup)
     bool isnew = in ? false:true;
     if (!in)
       in = new CInode(mds->mdcache, true);
-    (*p)->update_inode(mds, in);
+    (*p)->update_inode(in);
 
     if (isnew)
       mds->mdcache->add_inode(in);
@@ -1059,7 +1059,7 @@ void EMetaBlob::replay(MDS *mds, LogSegment *logseg, MDSlaveUpdate *slaveup)
       CInode *in = mds->mdcache->get_inode(p->inode.ino, p->dnlast);
       if (!in) {
 	in = new CInode(mds->mdcache, true, p->dnfirst, p->dnlast);
-	p->update_inode(mds, in);
+	p->update_inode(in);
 	mds->mdcache->add_inode(in);
 	if (!dn->get_linkage()->is_null()) {
 	  if (dn->get_linkage()->is_primary()) {
