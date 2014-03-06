@@ -980,8 +980,14 @@ void MDS::handle_mds_map(MMDSMap *m)
     dout(1) << "handle_mds_map state change "
 	    << ceph_mds_state_name(oldstate) << " --> "
 	    << ceph_mds_state_name(state) << dendl;
-    want_state = state;
+    if (want_state == MDSMap::STATE_ONESHOT_REPLAY && state != MDSMap::STATE_ONESHOT_REPLAY) {
+      derr << "Requested state ONESHOT_REPLAY but got state "
+	  << ceph_mds_state_name(state) << dendl;
+      suicide();
+      return;
+    }
 
+    want_state = state;
     if (oldstate == MDSMap::STATE_STANDBY_REPLAY) {
         dout(10) << "Monitor activated us! Deactivating replay loop" << dendl;
         assert (state == MDSMap::STATE_REPLAY);
