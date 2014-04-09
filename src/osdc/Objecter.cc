@@ -509,12 +509,33 @@ void Objecter::_scan_requests(OSDSession *s,
 
   RWLock::Context lc(rwlock, RWLock::Context::TakenForWrite);
 
-  RWLock::WLocker wl(s->lock);
+  s->lock.get_write();
+
+  list<LingerOp *> linger_ops;
+  list<Op *> ops;
+  list<CommandOp *> command_ops;
+
+  for (map<ceph_tid_t, LingerOp *>::iterator i = s->linger_ops.begin();
+       i != s->linger_ops.end(); ++i) {
+    linger_ops.push_back(i->second);
+  }
+
+  for (map<ceph_tid_t, Op *>::iterator i = s->ops.begin();
+       i != s->ops.end(); ++i) {
+    ops.push_back(i->second);
+  }
+
+  for (map<ceph_tid_t, CommandOp *>::iterator i = s->command_ops.begin();
+       i != s->command_ops.end(); ++i) {
+    command_ops.push_back(i->second);
+  }
+
+  s->lock.unlock();
 
   // check for changed linger mappings (_before_ regular ops)
-  map<ceph_tid_t,LingerOp*>::iterator lp = s->linger_ops.begin();
-  while (lp != s->linger_ops.end()) {
-    LingerOp *op = lp->second;
+  list<LingerOp*>::iterator lp = linger_ops.begin();
+  while (lp != linger_ops.end()) {
+    LingerOp *op = *lp;
     ++lp;   // check_linger_pool_dne() may touch linger_ops; prevent iterator invalidation
     ldout(cct, 10) << " checking linger op " << op->linger_id << dendl;
     int r = _recalc_linger_op_target(op, lc);
@@ -534,9 +555,9 @@ void Objecter::_scan_requests(OSDSession *s,
   }
 
   // check for changed request mappings
-  map<ceph_tid_t,Op*>::iterator p = s->ops.begin();
-  while (p != s->ops.end()) {
-    Op *op = p->second;
+  list<Op*>::iterator p = ops.begin();
+  while (p != ops.end()) {
+    Op *op = *p;
     ++p;   // check_op_pool_dne() may touch ops; prevent iterator invalidation
     ldout(cct, 10) << " checking op " << op->tid << dendl;
     int r = _recalc_op_target(op, lc);
@@ -557,9 +578,9 @@ void Objecter::_scan_requests(OSDSession *s,
   }
 
   // commands
-  map<ceph_tid_t,CommandOp*>::iterator cp = s->command_ops.begin();
-  while (cp != s->command_ops.end()) {
-    CommandOp *c = cp->second;
+  list<CommandOp*>::iterator cp = command_ops.begin();
+  while (cp != command_ops.end()) {
+    CommandOp *c = *cp;
     ++cp;
     ldout(cct, 10) << " checking command " << c->tid << dendl;
     int r = _recalc_command_target(c);
