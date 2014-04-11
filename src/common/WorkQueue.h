@@ -151,6 +151,7 @@ public:
     }
     void drain() {
       pool->drain(this);
+      assert(_void_dequeue() == NULL);
     }
 
   };
