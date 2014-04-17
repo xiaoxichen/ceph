@@ -23,20 +23,7 @@ Configuration for PowerDNS:
 launch=remote
 remote-connection-string=http:url=http://localhost:6780/dns
 
-Usage for this backend is showed by invoking with --help. No configuration is currently supported, all parameters
-are passed on as arguments.
-
-The region map can be obtained by executing: radosgw-admin regionmap get > regionmap.json
-
-Note: The RGW Admin API doesn't support fetching the regionmap, this will be added later.
-
-Example for running the backend:
-./pdns-backend-rgw.py --dns-zone o.myobjects.com \
---rgw-endpoint rgw1.machines.myobjects.com \
---rgw-admin-entry admin \
---rgw-access-key ACCESS_KEY \
---rgw-secret-key SUPER_SECRET_KEY \
---region-map /root/regionmap.json
+Usage for this backend is showed by invoking with --help. See rgw-pdns.conf.in for a configuration example
 
 The ACCESS and SECRET key pair requires the caps "metadata=read"
 
@@ -62,6 +49,7 @@ Should return something like:
 # Copyright: Wido den Hollander <wido@42on.com> 2014
 # License:   LGPL2.1
 
+from ConfigParser import SafeConfigParser
 from flask import abort, Flask, request, Response
 from hashlib import sha1 as sha
 from time import gmtime, strftime
@@ -73,6 +61,8 @@ import json
 import pycurl
 import StringIO
 import urllib
+import os
+import sys
 
 # The Flask App
 app = Flask(__name__)
@@ -207,38 +197,61 @@ def bucket_location(qname, qtype):
 
     return json.dumps(response, indent=1) + "\n"
 
-if __name__ == '__main__':
+def str2bool(s):
+    return s.lower() in ("yes", "true", "1")
+
+def init_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--listen-addr", help="The address to listen on.", action="store", default="127.0.0.1")
-    parser.add_argument("--listen-port", help="The port to listen on.", action="store", type=int, default=6780)
-    parser.add_argument("--dns-zone", help="The DNS zone.", action="store", default="rgw.local.lan")
-    parser.add_argument("--dns-soa-ttl", help="The DNS SOA TTL.", action="store", type=int, default=3600)
-    parser.add_argument("--dns-default-ttl", help="The DNS default TTL.", action="store", type=int, default=60)
-    parser.add_argument("--rgw-endpoint", help="The RGW admin endpoint.", action="store", default="localhost:8080")
-    parser.add_argument("--rgw-admin-entry", help="The RGW admin entry.", action="store", default="admin")
-    parser.add_argument("--rgw-access-key", help="The RGW access key.", action="store", default="access")
-    parser.add_argument("--rgw-secret-key", help="The RGW secret key.", action="store", default="secret")
-    parser.add_argument("--debug", help="Enable debugging.", action="store_true")
+    parser.add_argument("--config", help="The configuration file to use.", action="store")
 
     args = parser.parse_args()
-    config = {
+
+    defaults = {
+                   'listen_addr': '127.0.0.1',
+                   'listen_port': '6780',
+                   'dns_zone': 'rgw.local.lan',
+                   'dns_soa_ttl': '3600',
+                   'dns_default_ttl': '60',
+                   'rgw_endpoint': 'localhost:8080',
+                   'rgw_admin_entry': 'admin',
+                   'rgw_access_key': 'access',
+                   'rgw_secret_key': 'secret',
+                   'debug': False
+               }
+
+    cfg = SafeConfigParser(defaults)
+    if args.config == None:
+        cfg.read(['rgw-pdns.conf', '~/rgw-pdns.conf', '/etc/ceph/rgw-pdns.conf'])
+    else:
+        if not os.path.isfile(args.config):
+            print "Could not open configuration file %s" % args.config
+            sys.exit(1)
+
+        cfg.read(args.config)
+
+    config_section = 'powerdns'
+
+    return {
         'listen': {
-            'port': args.listen_port,
-            'addr': args.listen_addr
+            'port': cfg.get(config_section, 'listen_port'),
+            'addr': cfg.get(config_section, 'listen_addr')
             },
         'dns': {
-            'zone': args.dns_zone,
-            'soa_ttl': args.dns_soa_ttl,
-            'default_ttl': args.dns_default_ttl
+            'zone': cfg.get(config_section, 'dns_zone'),
+            'soa_ttl': cfg.get(config_section, 'dns_soa_ttl'),
+            'default_ttl': cfg.get(config_section, 'dns_default_ttl')
         },
         'rgw': {
-            'endpoint': args.rgw_endpoint,
-            'admin_entry': args.rgw_admin_entry,
-            'access_key': args.rgw_access_key,
-            'secret_key': args.rgw_secret_key
+            'endpoint': cfg.get(config_section, 'rgw_endpoint'),
+            'admin_entry': cfg.get(config_section, 'rgw_admin_entry'),
+            'access_key': cfg.get(config_section, 'rgw_access_key'),
+            'secret_key': cfg.get(config_section, 'rgw_secret_key')
         },
-        'debug': args.debug
+        'debug': str2bool(cfg.get(config_section, 'debug'))
     }
+
+if __name__ == '__main__':
+    config = init_config()
 
     region_map = parse_region_map(do_rgw_request('config'))
 
