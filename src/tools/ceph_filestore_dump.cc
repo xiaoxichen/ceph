@@ -1088,6 +1088,7 @@ int main(int argc, char **argv)
 {
   string fspath, jpath, pgidstr, type, file;
   Formatter *formatter = new JSONFormatter(true);
+  bool skip_journal_replay = false, skip_mount_omap = false;
 
   po::options_description desc("Allowed options");
   desc.add_options()
@@ -1103,6 +1104,8 @@ int main(int argc, char **argv)
     ("file", po::value<string>(&file),
      "path of file to export or import")
     ("debug", "Enable diagnostic output to stderr")
+    ("skip-journal-replay", "Disable journal replay")
+    ("skip-mount-omap", "Disable mounting of omap")
     ;
 
   po::variables_map vm;
@@ -1197,6 +1200,11 @@ int main(int argc, char **argv)
     debug = true;
   }
 
+  if (vm.count("skip-journal-replay"))
+    skip_journal_replay = true;
+  if (vm.count("skip-mount-omap"))
+    skip_mount_omap = true;
+
   global_init(
     &def_args, ceph_options, CEPH_ENTITY_TYPE_OSD,
     CODE_ENVIRONMENT_UTILITY, 0);
@@ -1243,6 +1251,9 @@ int main(int argc, char **argv)
 
   ObjectStore *fs = new FileStore(fspath, jpath);
   
+  // Don't need dynamic_cast since this is clearly a FileStore *
+  if (skip_journal_replay) static_cast<FileStore *>(fs)->set_skip_journal_replay();
+  if (skip_mount_omap) static_cast<FileStore *>(fs)->set_skip_mount_omap();
   int r = fs->mount();
   if (r < 0) {
     if (r == -EBUSY) {
