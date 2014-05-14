@@ -415,6 +415,7 @@ FileStore::FileStore(const std::string &base, const std::string &jdev, const cha
   JournalingObjectStore(base),
   internal_name(name),
   basedir(base), journalpath(jdev),
+  skip_journal_replay(false), skip_mount_omap(false),
   blk_size(0),
   fsid_fd(-1), op_fd(-1),
   basedir_fd(-1), current_fd(-1),
@@ -1120,7 +1121,7 @@ int FileStore::write_op_seq(int fd, uint64_t seq)
   return ret;
 }
 
-int FileStore::mount() 
+int FileStore::mount()
 {
   int ret;
   char buf[PATH_MAX];
@@ -1348,7 +1349,7 @@ int FileStore::mount()
     ::unlink(nosnapfn);
   }
 
-  {
+  if (!skip_mount_omap) {
     LevelDBStore *omap_store = new LevelDBStore(g_ceph_context, omap_dir);
 
     omap_store->init();
@@ -1462,24 +1463,26 @@ int FileStore::mount()
   wbthrottle.start();
   sync_thread.create();
 
-  ret = journal_replay(initial_op_seq);
-  if (ret < 0) {
-    derr << "mount failed to open journal " << journalpath << ": " << cpp_strerror(ret) << dendl;
-    if (ret == -ENOTTY) {
-      derr << "maybe journal is not pointing to a block device and its size "
-	   << "wasn't configured?" << dendl;
+  if (!skip_journal_replay) {
+    ret = journal_replay(initial_op_seq);
+    if (ret < 0) {
+      derr << "mount failed to open journal " << journalpath << ": " << cpp_strerror(ret) << dendl;
+      if (ret == -ENOTTY) {
+        derr << "maybe journal is not pointing to a block device and its size "
+	     << "wasn't configured?" << dendl;
+      }
+
+      // stop sync thread
+      lock.Lock();
+      stop = true;
+      sync_cond.Signal();
+      lock.Unlock();
+      sync_thread.join();
+
+      wbthrottle.stop();
+
+      goto close_current_fd;
     }
-
-    // stop sync thread
-    lock.Lock();
-    stop = true;
-    sync_cond.Signal();
-    lock.Unlock();
-    sync_thread.join();
-
-    wbthrottle.stop();
-
-    goto close_current_fd;
   }
 
   {

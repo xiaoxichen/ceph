@@ -122,6 +122,8 @@ private:
   std::string current_op_seq_fn;
   std::string omap_dir;
   uuid_d fsid;
+  bool skip_journal_replay;
+  bool skip_mount_omap;
   
   size_t blk_size;            ///< fs block size
 
@@ -346,6 +348,8 @@ public:
   int get_max_object_name_length();
   int mkfs();
   int mkjournal();
+  void set_skip_journal_replay() { skip_journal_replay = true; }
+  void set_skip_mount_omap() { skip_mount_omap = true; }
 
   /**
    * set_allow_sharded_objects()
