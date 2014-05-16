@@ -1672,6 +1672,14 @@ int librados::Rados::mon_command(string cmd, const bufferlist& inbl,
   return client->mon_command(cmdvec, inbl, outbl, outs);
 }
 
+int librados::Rados::osd_command(int osd, string cmd, const bufferlist& inbl,
+				 bufferlist *outbl, string *outs)
+{
+  vector<string> cmdvec;
+  cmdvec.push_back(cmd);
+  return client->osd_command(osd, cmdvec, inbl, outbl, outs);
+}
+
 int librados::Rados::ioctx_create(const char *name, IoCtx &io)
 {
   rados_ioctx_t p;
