@@ -127,6 +127,10 @@ OPTION(ms_inject_delay_msg_type, OPT_STR, "")      // the type of message to del
 OPTION(ms_inject_delay_max, OPT_DOUBLE, 1)         // seconds
 OPTION(ms_inject_delay_probability, OPT_DOUBLE, 0) // range [0, 1]
 OPTION(ms_inject_internal_delays, OPT_DOUBLE, 0)   // seconds
+OPTION(ms_blackhole_osd, OPT_BOOL, false)
+OPTION(ms_blackhole_mon, OPT_BOOL, false)
+OPTION(ms_blackhole_mds, OPT_BOOL, false)
+OPTION(ms_blackhole_client, OPT_BOOL, false)
 OPTION(ms_dump_on_send, OPT_BOOL, false)           // hexdump msg to log on send
 
 OPTION(inject_early_sigterm, OPT_BOOL, false)
