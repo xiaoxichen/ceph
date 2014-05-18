@@ -3400,4 +3400,48 @@ enum scrub_error_type {
   DEEP_ERROR,
   SHALLOW_ERROR
 };
+
+struct HeartbeatStamps {
+  Mutex lock;
+
+  /// last ack we send to this peer
+  utime_t last_reply;
+
+  /// the ping tx time for the most recent ping reply we recieved
+  /// from this peer.
+  utime_t last_acked_ping;
+
+  /// highest up_from we've seen from this rank
+  epoch_t up_from;
+
+  /// lower bound on consumed epochs for peer's PGs
+  epoch_t consumed_epoch;
+
+  HeartbeatStamps()
+    : lock("OSDService::HeartbeatStamps::lock"),
+      up_from(0),
+      consumed_epoch(0) {}
+
+  void got_ping(utime_t now, epoch_t consumed) {
+    Mutex::Locker l(lock);
+    if (consumed < consumed_epoch)
+      return;
+    if (consumed > consumed_epoch)
+      consumed_epoch = consumed;
+    last_reply = now;
+  }
+
+  void got_ping_reply(utime_t stamp, epoch_t consumed) {
+    Mutex::Locker l(lock);
+    if (consumed < consumed_epoch)
+      return;
+    if (consumed > consumed_epoch)
+      consumed_epoch = consumed;
+    if (stamp > last_acked_ping)
+      last_acked_ping = stamp;
+  }
+};
+typedef ceph::shared_ptr<HeartbeatStamps> HeartbeatStampsRef;
+
+
 #endif
