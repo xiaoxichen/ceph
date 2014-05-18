@@ -3034,7 +3034,11 @@ void OSD::handle_osd_ping(MOSDPing *m)
     return;
   }
 
+  utime_t now = ceph_clock_now(cct);
+
   OSDMapRef curmap = service.get_osdmap();
+
+  ConnectionRef con(m->get_connection());
   
   switch (m->op) {
 
@@ -3072,14 +3076,15 @@ void OSD::handle_osd_ping(MOSDPing *m)
 				MOSDPing::PING_REPLY,
 				m->stamp, service.get_up_epoch(),
 				service.get_min_pg_epoch());
-      m->get_connection()->get_messenger()->send_message(r, m->get_connection());
+      con->get_messenger()->send_message(r, con);
 
       if (curmap->is_up(from)) {
 	service.note_peer_epoch(from, m->map_epoch);
 	if (is_active()) {
-	  ConnectionRef con = service.get_con_osd_cluster(from, curmap->get_epoch());
-	  if (con) {
-	    service.share_map_peer(from, con.get());
+	  ConnectionRef cluster_con =
+	    service.get_con_osd_cluster(from, curmap->get_epoch());
+	  if (cluster_con) {
+	    service.share_map_peer(from, cluster_con.get());
 	  }
 	}
       } else if (!curmap->exists(from) ||
@@ -3091,7 +3096,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
 				  m->stamp,
 				  service.get_up_epoch(),
 				  service.get_min_pg_epoch());
-	m->get_connection()->get_messenger()->send_message(r, m->get_connection());
+	con->get_messenger()->send_message(r, con);
       }
     }
     break;
@@ -3100,7 +3105,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
     {
       map<int,HeartbeatInfo>::iterator i = heartbeat_peers.find(from);
       if (i != heartbeat_peers.end()) {
-	if (m->get_connection() == i->second.con_back) {
+	if (con == i->second.con_back) {
 	  dout(25) << "handle_osd_ping got reply from osd." << from
 		   << " first_rx " << i->second.first_tx
 		   << " last_tx " << i->second.last_tx
@@ -3126,14 +3131,15 @@ void OSD::handle_osd_ping(MOSDPing *m)
 	  curmap->is_up(from)) {
 	service.note_peer_epoch(from, m->map_epoch);
 	if (is_active()) {
-	  ConnectionRef con = service.get_con_osd_cluster(from, curmap->get_epoch());
-	  if (con) {
-	    service.share_map_peer(from, con.get());
+	  ConnectionRef cluster_con =
+	    service.get_con_osd_cluster(from, curmap->get_epoch());
+	  if (cluster_con) {
+	    service.share_map_peer(from, cluster_con.get());
 	  }
 	}
       }
 
-      utime_t cutoff = ceph_clock_now(cct);
+      utime_t cutoff = now;
       cutoff -= cct->_conf->osd_heartbeat_grace;
       if (i->second.is_healthy(cutoff)) {
 	// Cancel false reports
