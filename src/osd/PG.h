@@ -490,6 +490,13 @@ public:
     return readable_until;
   }
 
+  utime_t get_readable_delta() {
+    recalc_readable_until();
+    if (readable_until != utime_t())
+      return ceph_clock_now(NULL) - readable_until;
+    return utime_t();
+  }
+
   // [primary only] content recovery state
  protected:
   struct PriorSet {
