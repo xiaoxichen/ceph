@@ -1302,8 +1302,9 @@ public:
   struct MNotifyRec : boost::statechart::event< MNotifyRec > {
     pg_shard_t from;
     pg_notify_t notify;
-    MNotifyRec(pg_shard_t from, pg_notify_t &notify) :
-      from(from), notify(notify) {}
+    utime_t rx_stamp;
+    MNotifyRec(pg_shard_t from, pg_notify_t &notify, utime_t t) :
+      from(from), notify(notify), rx_stamp(t) {}
     void print(std::ostream *out) const {
       *out << "MNotifyRec from " << from << " notify: " << notify;
     }

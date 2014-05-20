@@ -7121,7 +7121,8 @@ void OSD::handle_pg_notify(OpRequestRef op)
       PG::CephPeeringEvtRef(
 	new PG::CephPeeringEvt(
 	  it->first.epoch_sent, it->first.query_epoch,
-	  PG::MNotifyRec(pg_shard_t(from, it->first.from), it->first)))
+	  PG::MNotifyRec(pg_shard_t(from, it->first.from), it->first,
+			 m->get_recv_stamp())))
       );
   }
 }
