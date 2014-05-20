@@ -1395,6 +1395,23 @@ int do_set_omap(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key, 
   return 0;
 }
 
+int do_rm_omap(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key)
+{
+  ObjectStore::Transaction tran;
+  ObjectStore::Transaction *t = &tran;
+  set<string> keys;
+
+  keys.insert(key);
+
+  if (debug)
+    cerr << "Rm_omap " << ghobj << std::endl;
+
+  t->omap_rmkeys(coll, ghobj, keys);
+
+  store->apply_transaction(*t);
+  return 0;
+}
+
 void usage(po::options_description &desc)
 {
     cerr << std::endl;
@@ -1850,6 +1867,13 @@ int main(int argc, char **argv)
 	if (vm.count("arg1") == 0 || vm.count("arg2") == 0)
 	  usage(desc);
 	r = do_set_omap(fs, coll, ghobj, arg1, arg2);
+	if (r)
+	  ret = 1;
+        goto out;
+      } else if (objcmd == "rm-omap") {
+	if (vm.count("arg1") == 0)
+	  usage(desc);
+	r = do_rm_omap(fs, coll, ghobj, arg1);
 	if (r)
 	  ret = 1;
         goto out;
