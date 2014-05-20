@@ -1327,6 +1327,20 @@ int do_set_attr(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key, 
   return 0;
 }
 
+int do_rm_attr(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key)
+{
+  ObjectStore::Transaction tran;
+  ObjectStore::Transaction *t = &tran;
+
+  if (debug)
+    cerr << "Rmattr " << ghobj << std::endl;
+
+  t->rmattr(coll, ghobj, key);
+
+  store->apply_transaction(*t);
+  return 0;
+}
+
 void usage(po::options_description &desc)
 {
     cerr << std::endl;
@@ -1761,6 +1775,13 @@ int main(int argc, char **argv)
 	if (vm.count("arg1") == 0 || vm.count("arg2") == 0)
 	  usage(desc);
 	r = do_set_attr(fs, coll, ghobj, arg1, arg2);
+	if (r)
+	  ret = 1;
+        goto out;
+      } else if (objcmd == "rm-attr") {
+	if (vm.count("arg1") == 0)
+	  usage(desc);
+	r = do_rm_attr(fs, coll, ghobj, arg1);
 	if (r)
 	  ret = 1;
         goto out;
