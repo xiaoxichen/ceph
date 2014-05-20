@@ -1432,6 +1432,26 @@ int do_get_omaphdr(ObjectStore *store, coll_t coll, ghobject_t &ghobj)
   return 0;
 }
 
+int do_set_omaphdr(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string value)
+{
+  ObjectStore::Transaction tran;
+  ObjectStore::Transaction *t = &tran;
+  bufferptr hdrbp(value.c_str(), value.length());
+  bufferlist hdrbl;
+
+  hdrbl.push_back(hdrbp);
+
+  if (debug)
+    cerr << "Omap_setheader " << ghobj << std::endl;
+
+  t->touch(coll, ghobj);
+
+  t->omap_setheader(coll, ghobj, hdrbl);
+
+  store->apply_transaction(*t);
+  return 0;
+}
+
 void usage(po::options_description &desc)
 {
     cerr << std::endl;
@@ -1901,6 +1921,13 @@ int main(int argc, char **argv)
 	if (vm.count("arg1"))
 	  usage(desc);
 	r = do_get_omaphdr(fs, coll, ghobj);
+	if (r)
+	  ret = 1;
+        goto out;
+      } else if (objcmd == "set-omaphdr") {
+	if (vm.count("arg1") == 0)
+	  usage(desc);
+	r = do_set_omaphdr(fs, coll, ghobj, arg1);
 	if (r)
 	  ret = 1;
         goto out;
