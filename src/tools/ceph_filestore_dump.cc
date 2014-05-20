@@ -1372,6 +1372,29 @@ int do_get_omap(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key)
   return 0;
 }
 
+int do_set_omap(ObjectStore *store, coll_t coll, ghobject_t &ghobj, string key, string value)
+{
+  ObjectStore::Transaction tran;
+  ObjectStore::Transaction *t = &tran;
+  map<string, bufferlist> attrset;
+  bufferptr valbp(value.c_str(), value.length());
+  bufferlist valbl;
+
+  valbl.push_back(valbp);
+
+  attrset.insert(pair<string, bufferlist>(key, valbl));
+
+  if (debug)
+    cerr << "Set_omap " << ghobj << std::endl;
+
+  t->touch(coll, ghobj);
+
+  t->omap_setkeys(coll, ghobj, attrset);
+
+  store->apply_transaction(*t);
+  return 0;
+}
+
 void usage(po::options_description &desc)
 {
     cerr << std::endl;
@@ -1820,6 +1843,13 @@ int main(int argc, char **argv)
 	if (vm.count("arg1") == 0)
 	  usage(desc);
 	r = do_get_omap(fs, coll, ghobj, arg1);
+	if (r)
+	  ret = 1;
+        goto out;
+      } else if (objcmd == "set-omap") {
+	if (vm.count("arg1") == 0 || vm.count("arg2") == 0)
+	  usage(desc);
+	r = do_set_omap(fs, coll, ghobj, arg1, arg2);
 	if (r)
 	  ret = 1;
         goto out;
