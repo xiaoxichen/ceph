@@ -4652,7 +4652,8 @@ void PG::start_peering_interval(
   unreg_next_scrub();
 
   // make readable_until value for the current/prior interval accurate
-  recalc_readable_until();
+  utime_t now = ceph_clock_now(NULL);
+  recalc_readable_until(now);
 
   pg_shard_t old_acting_primary = get_primary();
   pg_shard_t old_up_primary = up_primary;
