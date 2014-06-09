@@ -1946,24 +1946,6 @@ void PG::finish_recovery_op(const hobject_t& soid, bool dequeue)
   osd->osd->finish_recovery_op(this, soid, dequeue);
 }
 
-static void split_list(
-  list<OpRequestRef> *from,
-  list<OpRequestRef> *to,
-  unsigned match,
-  unsigned bits)
-{
-  for (list<OpRequestRef>::iterator i = from->begin();
-       i != from->end();
-    ) {
-    if (PG::split_request(*i, match, bits)) {
-      to->push_back(*i);
-      from->erase(i++);
-    } else {
-      ++i;
-    }
-  }
-}
-
 static void split_replay_queue(
   map<eversion_t, OpRequestRef> *from,
   map<eversion_t, OpRequestRef> *to,
@@ -1973,7 +1955,7 @@ static void split_replay_queue(
   for (map<eversion_t, OpRequestRef>::iterator i = from->begin();
        i != from->end();
        ) {
-    if (PG::split_request(i->second, match, bits)) {
+    if (OSD::split_request(i->second, match, bits)) {
       to->insert(*i);
       from->erase(i++);
     } else {
@@ -1993,10 +1975,12 @@ void PG::split_ops(PG *child, unsigned split_bits) {
   split_replay_queue(&replay_queue, &(child->replay_queue), match, split_bits);
 
   osd->dequeue_pg(this, &waiting_for_active);
-  split_list(&waiting_for_active, &(child->waiting_for_active), match, split_bits);
+  OSD::split_list(
+    &waiting_for_active, &(child->waiting_for_active), match, split_bits);
   {
     Mutex::Locker l(map_lock); // to avoid a race with the osd dispatch
-    split_list(&waiting_for_map, &(child->waiting_for_map), match, split_bits);
+    OSD::split_list(
+      &waiting_for_map, &(child->waiting_for_map), match, split_bits);
   }
 }
 
@@ -4419,6 +4403,21 @@ void PG::start_flush(ObjectStore::Transaction *t,
   on_safe->push_back(new ContainerContext<FlushStateRef>(flush_trigger));
 }
 
+void PG::reset_interval_flush()
+{
+  dout(10) << "Clearing blocked outgoing recovery messages" << dendl;
+  recovery_state.clear_blocked_outgoing();
+  
+  if (!osr->flush_commit(
+      new QueuePeeringEvt<IntervalFlush>(
+	this, get_osdmap()->get_epoch(), IntervalFlush()))) {
+    dout(10) << "Beginning to block outgoing recovery messages" << dendl;
+    recovery_state.begin_block_outgoing();
+  } else {
+    dout(10) << "Not blocking outgoing recovery messages" << dendl;
+  }
+}
+
 /* Called before initializing peering during advance_map */
 void PG::start_peering_interval(
   const OSDMapRef lastmap,
@@ -4429,6 +4428,7 @@ void PG::start_peering_interval(
   const OSDMapRef osdmap = get_osdmap();
 
   set_last_peering_reset();
+  reset_interval_flush();
 
   vector<int> oldacting, oldup;
   int oldrole = get_role();
@@ -4851,16 +4851,6 @@ bool PG::can_discard_request(OpRequestRef op)
   return true;
 }
 
-bool PG::split_request(OpRequestRef op, unsigned match, unsigned bits)
-{
-  unsigned mask = ~((~0)<<bits);
-  switch (op->get_req()->get_type()) {
-  case CEPH_MSG_OSD_OP:
-    return (static_cast<MOSDOp*>(op->get_req())->get_pg().m_seed & mask) == match;
-  }
-  return false;
-}
-
 bool PG::op_must_wait_for_map(OSDMapRef curmap, OpRequestRef op)
 {
   switch (op->get_req()->get_type()) {
@@ -5168,6 +5158,15 @@ PG::RecoveryState::Started::Started(my_context ctx)
 }
 
 boost::statechart::result
+PG::RecoveryState::Started::react(const IntervalFlush&)
+{
+  dout(10) << "Ending blocked outgoing recovery messages" << dendl;
+  context< RecoveryMachine >().pg->recovery_state.end_block_outgoing();
+  return discard_event();
+}
+
+
+boost::statechart::result
 PG::RecoveryState::Started::react(const FlushedEvt&)
 {
   PG *pg = context< RecoveryMachine >().pg;
@@ -5219,6 +5218,7 @@ PG::RecoveryState::Reset::Reset(my_context ctx)
 {
   context< RecoveryMachine >().log_enter(state_name);
   PG *pg = context< RecoveryMachine >().pg;
+
   pg->flushes_in_progress = 0;
   pg->set_last_peering_reset();
 }
@@ -5228,6 +5228,14 @@ PG::RecoveryState::Reset::react(const FlushedEvt&)
 {
   PG *pg = context< RecoveryMachine >().pg;
   pg->on_flushed();
+  return discard_event();
+}
+
+boost::statechart::result
+PG::RecoveryState::Reset::react(const IntervalFlush&)
+{
+  dout(10) << "Ending blocked outgoing recovery messages" << dendl;
+  context< RecoveryMachine >().pg->recovery_state.end_block_outgoing();
   return discard_event();
 }
 
@@ -7272,9 +7280,42 @@ bool PG::PriorSet::affected_by_map(const OSDMapRef osdmap, const PG *debug_pg) c
 
 void PG::RecoveryState::start_handle(RecoveryCtx *new_ctx) {
   assert(!rctx);
-  rctx = new_ctx;
-  if (rctx)
+  assert(!ext_ctx);
+  ext_ctx = new_ctx;
+  if (new_ctx) {
+    if (messages_pending_flush) {
+      assert(messages_pending_flush);
+      rctx = RecoveryCtx(*messages_pending_flush, *new_ctx);
+    } else {
+      assert(!messages_pending_flush);
+      rctx = *new_ctx;
+    }
     rctx->start_time = ceph_clock_now(pg->cct);
+  }
+}
+
+void PG::RecoveryState::begin_block_outgoing() {
+  assert(!messages_pending_flush);
+  assert(ext_ctx);
+  assert(rctx);
+  messages_pending_flush = BufferedRecoveryMessages();
+  rctx = RecoveryCtx(*messages_pending_flush, *ext_ctx);
+}
+
+void PG::RecoveryState::clear_blocked_outgoing() {
+  assert(ext_ctx);
+  assert(rctx);
+  messages_pending_flush = boost::optional<BufferedRecoveryMessages>();
+}
+
+void PG::RecoveryState::end_block_outgoing() {
+  assert(messages_pending_flush);
+  assert(ext_ctx);
+  assert(rctx);
+
+  rctx = RecoveryCtx(*ext_ctx);
+  rctx->accept_buffered_messages(*messages_pending_flush);
+  messages_pending_flush = boost::optional<BufferedRecoveryMessages>();
 }
 
 void PG::RecoveryState::end_handle() {
@@ -7282,8 +7323,10 @@ void PG::RecoveryState::end_handle() {
     utime_t dur = ceph_clock_now(pg->cct) - rctx->start_time;
     machine.event_time += dur;
   }
+
   machine.event_count++;
-  rctx = 0;
+  rctx = boost::optional<RecoveryCtx>();
+  ext_ctx = NULL;
 }
 
 void intrusive_ptr_add_ref(PG *pg) { pg->get("intptr"); }
