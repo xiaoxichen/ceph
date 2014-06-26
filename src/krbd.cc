@@ -427,13 +427,14 @@ static int do_unmap(struct udev *udev, dev_t devno, const string& id)
   again:
     r = sysfs_write_rbd_remove(id);
     if (r < 0) {
-      if (r == -EBUSY && tries++ < 5) {
+      if (r == -EBUSY && tries++ < 50) {
         usleep(200 * 1000);
         goto again;
       }
       cerr << "rbd: sysfs write failed" << std::endl;
       goto out_mon;
     }
+cout << "unmap looped " << tries << " times" << std::endl;
   }
 
   r = wait_for_udev_remove(mon, devno);
