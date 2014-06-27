@@ -2063,8 +2063,20 @@ main(int argc, char **argv)
 #endif
 
 	original_buf = (char *) malloc(maxfilelen);
-	for (i = 0; i < (int)maxfilelen; i++)
-		original_buf[i] = random() % 256;
+	for (i = 0; i < (int)maxfilelen; i++) {
+		long r;
+
+		if (i == 0)
+			printf("First 5 maxfilelen numbers:\n");
+		else if (i == (int)maxfilelen - 5)
+			printf("Last 5 maxfilelen numbers:\n");
+
+		r = random();
+		if (i < 5 || i >= (int)maxfilelen - 5)
+			printf("%ld\n", r);
+
+		original_buf[i] = r % 256;
+	}
 
 	ret = posix_memalign((void **)&good_buf,
 			     MAX(writebdy, (int)sizeof(void *)), maxfilelen);
