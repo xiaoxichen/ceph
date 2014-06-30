@@ -133,7 +133,7 @@ def get_bucket_region(bucket):
     return region
 
 # Returns the correct host for the bucket based on the regionmap
-def get_bucket_host(bucket):
+def get_bucket_host(bucket, region_map):
     region = get_bucket_region(bucket)
     return bucket + "." + region_map[region]
 
@@ -183,7 +183,7 @@ def init_config():
     try:
         return {
             'listen': {
-                'port': cfg.get(config_section, 'listen_port'),
+                'port': int(cfg.get(config_section, 'listen_port')),
                 'addr': cfg.get(config_section, 'listen_addr')
                 },
             'dns': {
@@ -245,7 +245,7 @@ def generate_app(config):
             result.update({'content':'dns1.icann.org. hostmaster.icann.org. 2012080849 7200 3600 1209600 3600'})
             result.update({'ttl': config['dns']['soa_ttl']})
         else:
-            region_hostname = get_bucket_host(bucket)
+            region_hostname = get_bucket_host(bucket, region_map)
             result.update({'qtype': 'CNAME'})
             result.update({'qname': qname})
             result.update({'content': region_hostname})
