@@ -49,7 +49,7 @@ Should return something like:
 # Copyright: Wido den Hollander <wido@42on.com> 2014
 # License:   LGPL2.1
 
-from ConfigParser import SafeConfigParser
+from ConfigParser import SafeConfigParser, NoSectionError
 from flask import abort, Flask, request, Response
 from hashlib import sha1 as sha
 from time import gmtime, strftime
@@ -64,22 +64,10 @@ import urllib
 import os
 import sys
 
-# The Flask App
-app = Flask(__name__)
-
 # PowerDNS expects a 200 what ever happends and always wants
 # 'result' to 'true' if the query fails
 def abort_early():
     return json.dumps({'result': 'true'}) + "\n"
-
-# This should support multiple endpoints per region!
-def parse_region_map(map):
-    regions = {}
-    for region in map['regions']:
-        url = urlparse(region['val']['endpoints'][0])
-        regions.update({region['key']: url.netloc})
-
-    return regions
 
 # Generate the Signature string for S3 Authorization with the RGW Admin API
 def generate_signature(method, date, uri, headers=None):
@@ -149,53 +137,14 @@ def get_bucket_host(bucket):
     region = get_bucket_region(bucket)
     return bucket + "." + region_map[region]
 
-@app.route('/')
-def index():
-    abort(404)
-
-@app.route("/dns/lookup/<qname>/<qtype>")
-def bucket_location(qname, qtype):
-    if len(qname) == 0:
-        return abort_early()
-
-    split = qname.split(".", 1)
-    if len(split) != 2:
-        return abort_early()
-
-    bucket = split[0]
-    zone = split[1]
-
-    # If the received qname doesn't match our zone we abort
-    if zone != config['dns']['zone']:
-        return abort_early()
-
-    # We do not serve MX records
-    if qtype == "MX":
-        return abort_early()
-
-    # The basic result we always return, this is what PowerDNS expects.
-    response = {'result': 'true'}
-    result = {}
-
-    # A hardcoded SOA response (FIXME!)
-    if qtype == "SOA":
-        result.update({'qtype': qtype})
-        result.update({'qname': qname})
-        result.update({'content':'dns1.icann.org. hostmaster.icann.org. 2012080849 7200 3600 1209600 3600'})
-        result.update({'ttl': config['dns']['soa_ttl']})
-    else:
-        region_hostname = get_bucket_host(bucket)
-        result.update({'qtype': 'CNAME'})
-        result.update({'qname': qname})
-        result.update({'content': region_hostname})
-        result.update({'ttl': config['dns']['default_ttl']})
-
-    if len(result) > 0:
-        res = []
-        res.append(result)
-        response['result'] = res
-
-    return json.dumps(response, indent=1) + "\n"
+# This should support multiple endpoints per region!
+def parse_region_map(map):
+    regions = {}
+    for region in map['regions']:
+        url = urlparse(region['val']['endpoints'][0])
+        regions.update({region['key']: url.netloc})
+ 
+    return regions
 
 def str2bool(s):
     return s.lower() in ("yes", "true", "1")
@@ -231,29 +180,96 @@ def init_config():
 
     config_section = 'powerdns'
 
-    return {
-        'listen': {
-            'port': cfg.get(config_section, 'listen_port'),
-            'addr': cfg.get(config_section, 'listen_addr')
+    try:
+        return {
+            'listen': {
+                'port': cfg.get(config_section, 'listen_port'),
+                'addr': cfg.get(config_section, 'listen_addr')
+                },
+            'dns': {
+                'zone': cfg.get(config_section, 'dns_zone'),
+                'soa_ttl': cfg.get(config_section, 'dns_soa_ttl'),
+                'default_ttl': cfg.get(config_section, 'dns_default_ttl')
             },
-        'dns': {
-            'zone': cfg.get(config_section, 'dns_zone'),
-            'soa_ttl': cfg.get(config_section, 'dns_soa_ttl'),
-            'default_ttl': cfg.get(config_section, 'dns_default_ttl')
-        },
-        'rgw': {
-            'endpoint': cfg.get(config_section, 'rgw_endpoint'),
-            'admin_entry': cfg.get(config_section, 'rgw_admin_entry'),
-            'access_key': cfg.get(config_section, 'rgw_access_key'),
-            'secret_key': cfg.get(config_section, 'rgw_secret_key')
-        },
-        'debug': str2bool(cfg.get(config_section, 'debug'))
-    }
+            'rgw': {
+                'endpoint': cfg.get(config_section, 'rgw_endpoint'),
+                'admin_entry': cfg.get(config_section, 'rgw_admin_entry'),
+                'access_key': cfg.get(config_section, 'rgw_access_key'),
+                'secret_key': cfg.get(config_section, 'rgw_secret_key')
+            },
+            'debug': str2bool(cfg.get(config_section, 'debug'))
+        }
 
-if __name__ == '__main__':
-    config = init_config()
+    except NoSectionError:
+         return None
 
+def generate_app(config):
+    # The Flask App
+    app = Flask(__name__)
+    
+    # Get the RGW Region Map
     region_map = parse_region_map(do_rgw_request('config'))
 
-    app.debug = config['debug']
+    @app.route('/')
+    def index():
+        abort(404)
+
+    @app.route("/dns/lookup/<qname>/<qtype>")
+    def bucket_location(qname, qtype):
+        if len(qname) == 0:
+            return abort_early()
+
+        split = qname.split(".", 1)
+        if len(split) != 2:
+            return abort_early()
+
+        bucket = split[0]
+        zone = split[1]
+
+        # If the received qname doesn't match our zone we abort
+        if zone != config['dns']['zone']:
+            return abort_early()
+
+        # We do not serve MX records
+        if qtype == "MX":
+            return abort_early()
+
+        # The basic result we always return, this is what PowerDNS expects.
+        response = {'result': 'true'}
+        result = {}
+
+        # A hardcoded SOA response (FIXME!)
+        if qtype == "SOA":
+            result.update({'qtype': qtype})
+            result.update({'qname': qname})
+            result.update({'content':'dns1.icann.org. hostmaster.icann.org. 2012080849 7200 3600 1209600 3600'})
+            result.update({'ttl': config['dns']['soa_ttl']})
+        else:
+            region_hostname = get_bucket_host(bucket)
+            result.update({'qtype': 'CNAME'})
+            result.update({'qname': qname})
+            result.update({'content': region_hostname})
+            result.update({'ttl': config['dns']['default_ttl']})
+
+        if len(result) > 0:
+            res = []
+            res.append(result)
+            response['result'] = res
+
+        return json.dumps(response, indent=1) + "\n"
+
+    return app
+
+
+# Initialize the configuration and generate the Application
+config = init_config()
+if config == None:
+    print "Could not parse configuration file."
+    sys.exit(1)
+
+app = generate_app(config)
+app.debug = config['debug']
+
+# Only run the App if this script is invoked from a Shell
+if __name__ == '__main__':
     app.run(host=config['listen']['addr'], port=config['listen']['port'])
