@@ -183,7 +183,7 @@ def init_config():
     try:
         return {
             'listen': {
-                'port': int(cfg.get(config_section, 'listen_port')),
+                'port': cfg.getint(config_section, 'listen_port'),
                 'addr': cfg.get(config_section, 'listen_addr')
                 },
             'dns': {
