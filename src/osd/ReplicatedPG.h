@@ -911,7 +911,9 @@ protected:
       pg(p), obc(o) {}
     void finish(int r) {
       pg->object_context_destructor_callback(obc);
-     }
+      obc = NULL;
+    }
+    ~C_PG_ObjectContext() { assert(!obc); }
   };
 
   int find_object_context(const hobject_t& oid,
