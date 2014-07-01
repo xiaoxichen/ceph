@@ -1572,6 +1572,8 @@ void pg_stat_t::dump(Formatter *f) const
   f->dump_stream("last_clean") << last_clean;
   f->dump_stream("last_became_active") << last_became_active;
   f->dump_stream("last_unstale") << last_unstale;
+  f->dump_stream("last_undegraded") << last_undegraded;
+  f->dump_stream("last_fullsized") << last_fullsized;
   f->dump_unsigned("mapping_epoch", mapping_epoch);
   f->dump_stream("log_start") << log_start;
   f->dump_stream("ondisk_log_start") << ondisk_log_start;
@@ -1617,7 +1619,7 @@ void pg_stat_t::dump_brief(Formatter *f) const
 
 void pg_stat_t::encode(bufferlist &bl) const
 {
-  ENCODE_START(17, 8, bl);
+  ENCODE_START(18, 8, bl);
   ::encode(version, bl);
   ::encode(reported_seq, bl);
   ::encode(reported_epoch, bl);
@@ -1651,12 +1653,14 @@ void pg_stat_t::encode(bufferlist &bl) const
   ::encode(acting_primary, bl);
   ::encode(omap_stats_invalid, bl);
   ::encode(hitset_stats_invalid, bl);
+  ::encode(last_undegraded, bl);
+  ::encode(last_fullsized, bl);
   ENCODE_FINISH(bl);
 }
 
 void pg_stat_t::decode(bufferlist::iterator &bl)
 {
-  DECODE_START_LEGACY_COMPAT_LEN(17, 8, 8, bl);
+  DECODE_START_LEGACY_COMPAT_LEN(18, 8, 8, bl);
   ::decode(version, bl);
   ::decode(reported_seq, bl);
   ::decode(reported_epoch, bl);
@@ -1764,6 +1768,13 @@ void pg_stat_t::decode(bufferlist::iterator &bl)
     // encoder may not have supported num_objects_hit_set_archive accounting.
     hitset_stats_invalid = true;
   }
+  if (struct_v >= 18) {
+    ::decode(last_undegraded, bl);
+    ::decode(last_fullsized, bl);
+  } else {
+    last_undegraded = utime_t();
+    last_fullsized = utime_t();
+  }
   DECODE_FINISH(bl);
 }
 
@@ -1782,6 +1793,8 @@ void pg_stat_t::generate_test_instances(list<pg_stat_t*>& o)
   a.last_active = utime_t(1002, 3);
   a.last_clean = utime_t(1002, 4);
   a.last_unstale = utime_t(1002, 5);
+  a.last_undegraded = utime_t(1002, 7);
+  a.last_fullsized = utime_t(1002, 8);
   a.log_start = eversion_t(1, 4);
   a.ondisk_log_start = eversion_t(1, 5);
   a.created = 6;
