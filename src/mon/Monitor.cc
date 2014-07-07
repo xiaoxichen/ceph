@@ -2633,8 +2633,6 @@ void Monitor::handle_forward(MForward *m)
     dout(0) << "forward from entity with insufficient caps! " 
 	    << session->caps << dendl;
   } else {
-    // see PaxosService::dispatch(); we rely on this being anon
-    // (c->msgr == NULL)
     ConnectionRef c = messenger->create_anon_connection();
     MonSession *s = new MonSession(m->msg->get_source_inst(),
 				   static_cast<Connection*>(c.get()));

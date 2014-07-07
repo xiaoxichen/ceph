@@ -51,11 +51,11 @@ bool PaxosService::dispatch(PaxosServiceMessage *m)
   }
 
   // make sure the client is still connected.  note that a proxied
-  // connection will be disconnected with a null message; don't drop
-  // those.  also ignore loopback (e.g., log) messages.
+  // Connection's has is_connected() false but is_anon() true.  also
+  // ignore loopback (e.g., log) messages.
   if (!m->get_connection()->is_connected() &&
-      m->get_connection() != mon->con_self &&
-      m->get_connection()->get_messenger() != NULL) {
+      !m->get_connection()->is_anon() &&
+      m->get_connection() != mon->con_self) {
     dout(10) << " discarding message from disconnected client "
 	     << m->get_source_inst() << " " << *m << dendl;
     m->put();

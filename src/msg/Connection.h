@@ -49,6 +49,7 @@ private:
   uint64_t features;
 public:
   bool failed; // true if we are a lossy connection that has failed.
+  bool anon;
 
   int rx_buffers_version;
   map<ceph_tid_t,pair<bufferlist,int> > rx_buffers;
@@ -65,6 +66,7 @@ public:
       peer_type(-1),
       features(0),
       failed(false),
+      anon(false),
       rx_buffers_version(0) {
   }
 
@@ -91,6 +93,13 @@ public:
   }
 
   virtual bool is_connected() = 0;
+
+  void set_anon() {
+    anon = true;
+  }
+  bool is_anon() const {
+    return anon;
+  }
 
   Messenger *get_messenger() {
     return msgr;
