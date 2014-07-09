@@ -553,6 +553,8 @@ OPTION(osd_leveldb_compression, OPT_BOOL, true) // OSD's leveldb uses compressio
 OPTION(osd_leveldb_paranoid, OPT_BOOL, false) // OSD's leveldb paranoid flag
 OPTION(osd_leveldb_log, OPT_STR, "")  // enable OSD leveldb log file
 
+OPTION(osd_keyvaluedb, OPT_STR, "leveldb")
+
 // determines whether PGLog::check() compares written out log to stored log
 OPTION(osd_debug_pg_log_writeout, OPT_BOOL, false)
 
@@ -568,13 +570,24 @@ OPTION(leveldb_compact_on_mount, OPT_BOOL, false)
 
 OPTION(rocksdb_compact_on_mount, OPT_BOOL, false)
 OPTION(rocksdb_write_buffer_size, OPT_U64, 0) // rocksdb write buffer size
+OPTION(rocksdb_target_file_size_base, OPT_U64, 0) // target file size for compaction
 OPTION(rocksdb_cache_size, OPT_U64, 0) // rocksdb cache size
 OPTION(rocksdb_block_size, OPT_U64, 0) // rocksdb block size
 OPTION(rocksdb_bloom_size, OPT_INT, 0) // rocksdb bloom bits per entry
+OPTION(rocksdb_write_buffer_num, OPT_INT, 0) // rocksdb bloom bits per entry
+OPTION(rocksdb_background_compactions, OPT_INT, 0) // number for background compaction jobs
+OPTION(rocksdb_background_flushes, OPT_INT, 0) // number for background flush jobs
 OPTION(rocksdb_max_open_files, OPT_INT, 0) // rocksdb max open files
 OPTION(rocksdb_compression, OPT_STR, "") // rocksdb uses compression : none, snappy, zlib, bzip2
 OPTION(rocksdb_paranoid, OPT_BOOL, false) // rocksdb paranoid flag
-OPTION(rocksdb_log, OPT_STR, "")  // enable rocksdb log file
+OPTION(rocksdb_log, OPT_STR, "/dev/null")  // enable rocksdb log file
+OPTION(rocksdb_level0_file_num_compaction_trigger, OPT_U64, 0)
+OPTION(rocksdb_level0_slowdown_writes_trigger, OPT_U64, 0)
+OPTION(rocksdb_level0_stop_writes_trigger, OPT_U64, 0)
+OPTION(rocksdb_disableDataSync, OPT_BOOL, true)
+OPTION(rocksdb_disableWAL, OPT_BOOL, false)
+OPTION(rocksdb_num_levels, OPT_INT, 0)
+OPTION(rocksdb_wal_dir, OPT_STR, "")  //  rocksdb write ahead log file
 
 /**
  * osd_client_op_priority and osd_recovery_op_priority adjust the relative
