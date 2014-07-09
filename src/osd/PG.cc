@@ -152,6 +152,15 @@ void PGPool::update(OSDMapRef map)
     << dendl;
 }
 
+utime_t PGPool::get_readable_interval()
+{
+  // use the heartbeat interval for now.  later, we should perhaps let
+  // users override this on a per-pool basis.
+  return utime_t(g_conf->osd_heartbeat_grace, 0);
+}
+
+/////////////////////////////////
+
 PG::PG(OSDService *o, OSDMapRef curmap,
        const PGPool &_pool, spg_t p, const hobject_t& loid,
        const hobject_t& ioid) :
@@ -280,6 +289,57 @@ void PG::init_primary_up_acting(
   }
   assert(up_primary.osd == new_up_primary);
   assert(primary.osd == new_acting_primary);
+
+  if (is_primary()) {
+    // we care about all other osds in the acting set
+    hb_stamps.resize(acting.size() - 1);
+    unsigned i = 0;
+    for (vector<int>::iterator p = acting.begin(); p != acting.end(); ++p) {
+      if (*p == CRUSH_ITEM_NONE || *p == get_primary().osd)
+	continue;
+      hb_stamps[i++] = osd->get_hb_stamps(*p);
+    }
+    hb_stamps.resize(i);
+  } else if (is_replica()) {
+    // we care about just the primary
+    hb_stamps.resize(1);
+    hb_stamps[0] = osd->get_hb_stamps(get_primary().osd);
+  } else {
+    hb_stamps.clear();
+  }
+}
+
+void PG::recalc_readable_until(utime_t now)
+{
+  // prune values in the past
+  while (!readable_until.empty() &&
+	 readable_until.begin()->second <= now) {
+    readable_until.erase(readable_until.begin());
+  }
+  epoch_t start = info.history.same_interval_since;
+  if (is_primary()) {
+    utime_t min;
+    vector<HeartbeatStampsRef>::iterator p = hb_stamps.begin();
+    if (p == hb_stamps.end()) {
+      // Note that if we are alone, then this is all moot since
+      // anybody else will need to probe us to peer anyway.
+      min = ceph_clock_now(NULL);
+    } else {
+      min = (*p)->last_acked_ping;
+      for (++p; p != hb_stamps.end(); ++p) {
+	if ((*p)->last_acked_ping < min)
+	  min = (*p)->last_acked_ping;
+      }
+    }
+    readable_until[start] = min + pool.get_readable_interval();
+  } else if (is_replica()) {
+    assert(hb_stamps.size() == 1);
+    readable_until[start] =
+      hb_stamps[0]->last_reply + pool.get_readable_interval();
+  } else {
+    readable_until[start] = utime_t();
+  }
+  dout(20) << __func__ << " " << readable_until << dendl;
 }
 
   
@@ -4567,6 +4627,9 @@ void PG::start_peering_interval(
   int oldrole = get_role();
 
   unreg_next_scrub();
+
+  // make readable_until value for the current/prior interval accurate
+  recalc_readable_until();
 
   pg_shard_t old_acting_primary = get_primary();
   pg_shard_t old_up_primary = up_primary;
