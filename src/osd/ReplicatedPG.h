@@ -260,7 +260,12 @@ public:
 	delete c;
       else
 	c->complete(t);
+      c = NULL;
       pg->unlock();
+    }
+    ~BlessedGenContext() {
+      delete c;
+      c = NULL;
     }
   };
   class BlessedContext : public Context {
@@ -276,7 +281,12 @@ public:
 	delete c;
       else
 	c->complete(r);
+      c = NULL;
       pg->unlock();
+    }
+    ~BlessedContext() {
+      delete c;
+      c = NULL;
     }
   };
   Context *bless_context(Context *c) {
@@ -901,7 +911,9 @@ protected:
       pg(p), obc(o) {}
     void finish(int r) {
       pg->object_context_destructor_callback(obc);
-     }
+      obc = NULL;
+    }
+    ~C_PG_ObjectContext() { assert(!obc); }
   };
 
   int find_object_context(const hobject_t& oid,
@@ -1271,9 +1283,9 @@ public:
 		 bufferlist& odata);
 
   void do_request(
-    OpRequestRef op,
+    OpRequestRef& op,
     ThreadPool::TPHandle &handle);
-  void do_op(OpRequestRef op);
+  void do_op(OpRequestRef& op);
   bool pg_op_must_wait(MOSDOp *op);
   void do_pg_op(OpRequestRef op);
   void do_sub_op(OpRequestRef op);
