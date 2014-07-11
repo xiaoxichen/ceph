@@ -260,7 +260,12 @@ public:
 	delete c;
       else
 	c->complete(t);
+      c = NULL;
       pg->unlock();
+    }
+    ~BlessedGenContext() {
+      delete c;
+      c = NULL;
     }
   };
   class BlessedContext : public Context {
@@ -276,7 +281,12 @@ public:
 	delete c;
       else
 	c->complete(r);
+      c = NULL;
       pg->unlock();
+    }
+    ~BlessedContext() {
+      delete c;
+      c = NULL;
     }
   };
   Context *bless_context(Context *c) {
@@ -901,7 +911,9 @@ protected:
       pg(p), obc(o) {}
     void finish(int r) {
       pg->object_context_destructor_callback(obc);
-     }
+      obc = NULL;
+    }
+    ~C_PG_ObjectContext() { assert(!obc); }
   };
 
   int find_object_context(const hobject_t& oid,
