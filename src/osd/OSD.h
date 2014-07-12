@@ -479,18 +479,6 @@ public:
   ConnectionRef get_con_osd_cluster(int peer, epoch_t from_epoch);
   pair<ConnectionRef,ConnectionRef> get_con_osd_hb(int peer, epoch_t from_epoch);  // (back, front)
   void send_message_osd_cluster(int peer, Message *m, epoch_t from_epoch);
-  void send_message_osd_cluster(Message *m, Connection *con) {
-    con->send_message(m);
-  }
-  void send_message_osd_cluster(Message *m, const ConnectionRef& con) {
-    con->send_message(m);
-  }
-  void send_message_osd_client(Message *m, Connection *con) {
-    con->send_message(m);
-  }
-  void send_message_osd_client(Message *m, const ConnectionRef& con) {
-    con->send_message(m);
-  }
   entity_name_t get_cluster_msgr_name() {
     return cluster_messenger->get_myname();
   }
@@ -899,13 +887,13 @@ public:
 struct C_OSD_SendMessageOnConn: public Context {
   OSDService *osd;
   Message *reply;
-  ConnectionRef conn;
+  ConnectionRef con;
   C_OSD_SendMessageOnConn(
     OSDService *osd,
     Message *reply,
-    ConnectionRef conn) : osd(osd), reply(reply), conn(conn) {}
+    ConnectionRef con) : osd(osd), reply(reply), con(con) {}
   void finish(int) {
-    osd->send_message_osd_cluster(reply, conn.get());
+    con->send_message(reply);
   }
 };
 

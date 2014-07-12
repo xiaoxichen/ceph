@@ -345,18 +345,6 @@ void ReplicatedPG::send_message_osd_cluster(
   osd->send_message_osd_cluster(peer, m, from_epoch);
 }
 
-void ReplicatedPG::send_message_osd_cluster(
-  Message *m, Connection *con)
-{
-  osd->send_message_osd_cluster(m, con);
-}
-
-void ReplicatedPG::send_message_osd_cluster(
-  Message *m, const ConnectionRef& con)
-{
-  osd->send_message_osd_cluster(m, con);
-}
-
 ConnectionRef ReplicatedPG::get_con_osd_cluster(
   int peer, epoch_t from_epoch)
 {
