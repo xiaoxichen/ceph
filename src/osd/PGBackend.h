@@ -623,7 +623,7 @@ struct PG_SendMessageOnConn: public Context {
     Message *reply,
     ConnectionRef conn) : pg(pg), reply(reply), conn(conn) {}
   void finish(int) {
-    pg->send_message_osd_cluster(reply, conn.get());
+    conn->send_message(reply);
   }
 };
 
