@@ -185,6 +185,8 @@ public:
   enum StuckPG {
     STUCK_INACTIVE,
     STUCK_UNCLEAN,
+    STUCK_UNDERSIZED,
+    STUCK_DEGRADED,
     STUCK_STALE,
     STUCK_NONE
   };
