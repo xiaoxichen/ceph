@@ -170,7 +170,7 @@ void Notify::maybe_complete_notify()
   if (!in_progress_watchers) {
     MWatchNotify *reply(new MWatchNotify(cookie, version, notify_id,
 					 WATCH_NOTIFY, payload));
-    osd->send_message_osd_client(reply, client.get());
+    client->send_message(reply);
     unregister_cb();
     complete = true;
   }
@@ -403,7 +403,7 @@ void Watch::send_notify(NotifyRef notif)
   MWatchNotify *notify_msg = new MWatchNotify(
     cookie, notif->version, notif->notify_id,
     WATCH_NOTIFY, notif->payload);
-  osd->send_message_osd_client(notify_msg, conn.get());
+  conn->send_message(notify_msg);
 }
 
 void Watch::notify_ack(uint64_t notify_id)

@@ -404,7 +404,7 @@ MDSTableServer *MDS::get_table_server(int t)
 void MDS::send_message(Message *m, Connection *c)
 { 
   assert(c);
-  messenger->send_message(m, c);
+  c->send_message(m);
 }
 
 
@@ -503,7 +503,7 @@ void MDS::send_message_client_counted(Message *m, Session *session)
   dout(10) << "send_message_client_counted " << session->info.inst.name << " seq "
 	   << seq << " " << *m << dendl;
   if (session->connection) {
-    messenger->send_message(m, session->connection);
+    session->connection->send_message(m);
   } else {
     session->preopen_out_queue.push_back(m);
   }
@@ -512,8 +512,8 @@ void MDS::send_message_client_counted(Message *m, Session *session)
 void MDS::send_message_client(Message *m, Session *session)
 {
   dout(10) << "send_message_client " << session->info.inst << " " << *m << dendl;
- if (session->connection) {
-    messenger->send_message(m, session->connection);
+  if (session->connection) {
+    session->connection->send_message(m);
   } else {
     session->preopen_out_queue.push_back(m);
   }
@@ -1249,8 +1249,7 @@ void MDS::bcast_mds_map()
   for (set<Session*>::const_iterator p = clients.begin();
        p != clients.end();
        ++p) 
-    messenger->send_message(new MMDSMap(monc->get_fsid(), mdsmap),
-			    (*p)->connection);
+    (*p)->connection->send_message(new MMDSMap(monc->get_fsid(), mdsmap));
   last_client_mdsmap_bcast = mdsmap->get_epoch();
 }
 
@@ -2226,13 +2225,13 @@ bool MDS::ms_handle_reset(Connection *con)
     if (session) {
       if (session->is_closed()) {
 	dout(3) << "ms_handle_reset closing connection for session " << session->info.inst << dendl;
-	messenger->mark_down(con);
+	con->mark_down();
 	con->set_priv(NULL);
 	sessionmap.remove_session(session);
       }
       session->put();
     } else {
-      messenger->mark_down(con);
+      con->mark_down();
     }
   }
   return false;
@@ -2255,7 +2254,7 @@ void MDS::ms_handle_remote_reset(Connection *con)
     if (session) {
       if (session->is_closed()) {
 	dout(3) << "ms_handle_remote_reset closing connection for session " << session->info.inst << dendl;
-	messenger->mark_down(con);
+	con->mark_down();
 	con->set_priv(NULL);
 	sessionmap.remove_session(session);
       }
@@ -2351,7 +2350,7 @@ void MDS::ms_handle_accept(Connection *con)
 
       // send out any queued messages
       while (!s->preopen_out_queue.empty()) {
-	messenger->send_message(s->preopen_out_queue.front(), con);
+	con->send_message(s->preopen_out_queue.front());
 	s->preopen_out_queue.pop_front();
       }
     }

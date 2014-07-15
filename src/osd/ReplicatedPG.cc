@@ -345,18 +345,6 @@ void ReplicatedPG::send_message_osd_cluster(
   osd->send_message_osd_cluster(peer, m, from_epoch);
 }
 
-void ReplicatedPG::send_message_osd_cluster(
-  Message *m, Connection *con)
-{
-  osd->send_message_osd_cluster(m, con);
-}
-
-void ReplicatedPG::send_message_osd_cluster(
-  Message *m, const ConnectionRef& con)
-{
-  osd->send_message_osd_cluster(m, con);
-}
-
 ConnectionRef ReplicatedPG::get_con_osd_cluster(
   int peer, epoch_t from_epoch)
 {
@@ -1011,7 +999,7 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
   reply->claim_op_out_data(ops);
   reply->set_result(result);
   reply->set_reply_versions(info.last_update, info.last_user_version);
-  osd->send_message_osd_client(reply, m->get_connection());
+  m->get_connection()->send_message(reply);
   delete filter;
 }
 
@@ -1276,7 +1264,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
 	    MOSDOpReply *reply = new MOSDOpReply(m, 0, get_osdmap()->get_epoch(), 0, false);
 	    reply->add_flags(CEPH_OSD_FLAG_ACK);
 	    reply->set_reply_versions(oldv, entry->user_version);
-	    osd->send_message_osd_client(reply, m->get_connection());
+	    m->get_connection()->send_message(reply);
 	  } else {
 	    dout(10) << " waiting for " << oldv << " to ack" << dendl;
 	    waiting_for_ack[oldv].push_back(op);
@@ -1681,7 +1669,7 @@ void ReplicatedPG::do_cache_redirect(OpRequestRef op, ObjectContextRef obc)
   reply->set_redirect(redir);
   dout(10) << "sending redirect to pool " << pool.info.tier_of << " for op "
 	   << op << dendl;
-  m->get_connection()->get_messenger()->send_message(reply, m->get_connection());
+  m->get_connection()->send_message(reply);
   return;
 }
 
@@ -2056,7 +2044,7 @@ void ReplicatedPG::do_scan(
 	get_osdmap()->get_epoch(), m->query_epoch,
 	spg_t(info.pgid.pgid, get_primary().shard), bi.begin, bi.end);
       ::encode(bi.objects, reply->get_data());
-      osd->send_message_osd_cluster(reply, m->get_connection());
+      m->get_connection()->send_message(reply);
     }
     break;
 
@@ -2263,7 +2251,7 @@ void ReplicatedPG::do_backfill(OpRequestRef op)
 	m->query_epoch,
 	spg_t(info.pgid.pgid, primary.shard));
       reply->set_priority(cct->_conf->osd_recovery_op_priority);
-      osd->send_message_osd_cluster(reply, m->get_connection());
+      m->get_connection()->send_message(reply);
       queue_peering_event(
 	CephPeeringEvtRef(
 	  new CephPeeringEvt(
@@ -5347,7 +5335,7 @@ void ReplicatedPG::complete_read_ctx(int result, OpContext *ctx)
   }
 
   reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
-  osd->send_message_osd_client(reply, m->get_connection());
+  m->get_connection()->send_message(reply);
   close_op_ctx(ctx, 0);
 }
 
@@ -6622,7 +6610,7 @@ void ReplicatedPG::eval_repop(RepGather *repop)
 	}
 	reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
 	dout(10) << " sending commit on " << *repop << " " << reply << dendl;
-	osd->send_message_osd_client(reply, m->get_connection());
+	m->get_connection()->send_message(reply);
 	repop->sent_disk = true;
 	repop->ctx->op->mark_commit_sent();
       }
@@ -6642,7 +6630,7 @@ void ReplicatedPG::eval_repop(RepGather *repop)
 	  reply->set_reply_versions(repop->ctx->at_version,
 	                            repop->ctx->user_at_version);
 	  reply->add_flags(CEPH_OSD_FLAG_ACK);
-	  osd->send_message_osd_client(reply, m->get_connection());
+	  m->get_connection()->send_message(reply);
 	}
 	waiting_for_ack.erase(repop->v);
       }
@@ -6660,7 +6648,7 @@ void ReplicatedPG::eval_repop(RepGather *repop)
 	reply->add_flags(CEPH_OSD_FLAG_ACK);
 	dout(10) << " sending ack on " << *repop << " " << reply << dendl;
         assert(entity_name_t::TYPE_OSD != m->get_connection()->peer_type);
-	osd->send_message_osd_client(reply, m->get_connection());
+	m->get_connection()->send_message(reply);
 	repop->sent_ack = true;
       }
 
@@ -8464,7 +8452,7 @@ void ReplicatedBackend::send_pushes(int prio, map<pg_shard_t, vector<PushOp> > &
 	  msg->pushes.push_back(*j);
 	}
 	msg->compute_cost(cct);
-	get_parent()->send_message_osd_cluster(msg, con);
+	con->send_message(msg);
       }
     }
   }
@@ -8502,7 +8490,7 @@ void ReplicatedBackend::send_pulls(int prio, map<pg_shard_t, vector<PullOp> > &p
       msg->map_epoch = get_osdmap()->get_epoch();
       msg->pulls.swap(i->second);
       msg->compute_cost(cct);
-      get_parent()->send_message_osd_cluster(msg, con);
+      con->send_message(msg);
     }
   }
 }
