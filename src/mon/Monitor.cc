@@ -3077,6 +3077,7 @@ bool Monitor::dispatch(MonSession *s, Message *m, const bool src_is_mon)
 
     case MSG_LOGACK:
       clog.handle_log_ack((MLogAck*)m);
+      m->put();
       break;
 
     // monmap
