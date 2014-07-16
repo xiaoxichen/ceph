@@ -66,6 +66,7 @@ struct LogEntry {
   uint64_t seq;
   clog_type prio;
   string msg;
+  string facility;
 
   LogEntryKey key() const { return LogEntryKey(who, stamp, seq); }
 
@@ -126,7 +127,7 @@ inline ostream& operator<<(ostream& out, clog_type t)
 inline ostream& operator<<(ostream& out, const LogEntry& e)
 {
   return out << e.stamp << " " << e.who << " " << e.seq << " : "
-             << e.prio << " " << e.msg;
+             << e.facility << " " << e.prio << " " << e.msg;
 }
 
 #endif
