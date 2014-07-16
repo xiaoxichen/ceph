@@ -58,6 +58,11 @@ public:
 
   LogClient(CephContext *cct, Messenger *m, MonMap *mm,
 	    enum logclient_flag_t flags);
+  LogClient(CephContext *cct, Messenger *m, MonMap *mm,
+            enum logclient_flag_t flags,
+            bool log_to_syslog,
+            std::string syslog_fac,
+            std::string syslog_lvl);
 
   bool handle_log_ack(MLogAck *m);
 
@@ -109,6 +114,10 @@ private:
   version_t last_log_sent;
   version_t last_log;
   std::deque<LogEntry> log_queue;
+
+  std::string log_facility;
+  std::string log_level;
+  bool log_to_syslog;
 
   friend class LogClientTemp;
 };
