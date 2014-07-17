@@ -48,6 +48,9 @@ OPTION(clog_to_monitors, OPT_BOOL, true)
 OPTION(clog_to_syslog, OPT_BOOL, false)
 OPTION(clog_to_syslog_level, OPT_STR, "info")         // this level and above
 OPTION(clog_to_syslog_facility, OPT_STR, "daemon")
+OPTION(admin_clog_facility, OPT_STR, "local0")
+OPTION(admin_clog_level, OPT_STR, "info")
+OPTION(admin_clog_to_syslog, OPT_BOOL, false)
 
 OPTION(mon_cluster_log_to_syslog, OPT_BOOL, false)
 OPTION(mon_cluster_log_to_syslog_level, OPT_STR, "info")   // this level and above

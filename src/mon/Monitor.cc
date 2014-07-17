@@ -142,6 +142,9 @@ Monitor::Monitor(CephContext* cct_, string nm, MonitorDBStore *s,
   logger(NULL), cluster_logger(NULL), cluster_logger_registered(false),
   monmap(map),
   clog(cct_, messenger, monmap, LogClient::FLAG_MON),
+  admin_clog(cct_, messenger, monmap, LogClient::FLAG_MON,
+           cct_->_conf->clog_to_syslog,
+           "auth", cct_->_conf->clog_to_syslog_level),
   key_server(cct, &keyring),
   auth_cluster_required(cct,
 			cct->_conf->auth_supported.length() ?
@@ -2312,9 +2315,16 @@ void Monitor::handle_command(MMonCommand *m)
   if (!_allowed_command(session, module, prefix, cmdmap,
                         param_str_map, mon_cmd)) {
     dout(1) << __func__ << " access denied" << dendl;
+    admin_clog.info() << "from='" << session->inst << "' "
+                      << "entity='" << session->auth_handler->get_entity_name()
+                      << "' cmd=" << m->cmd << ":  access denied";
     reply_command(m, -EACCES, "access denied", 0);
     return;
   }
+
+  admin_clog.info() << "from='" << session->inst << "' "
+    << "entity='" << session->auth_handler->get_entity_name()
+    << "' cmd=" << m->cmd << ": dispatch";
 
   if (module == "mds" || module == "fs") {
     mdsmon()->dispatch(m);
@@ -3077,6 +3087,7 @@ bool Monitor::dispatch(MonSession *s, Message *m, const bool src_is_mon)
 
     case MSG_LOGACK:
       clog.handle_log_ack((MLogAck*)m);
+      admin_clog.handle_log_ack((MLogAck*)m);
       m->put();
       break;
 

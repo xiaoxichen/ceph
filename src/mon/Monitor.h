@@ -146,6 +146,7 @@ public:
   set<entity_addr_t> extra_probe_peers;
 
   LogClient clog;
+  LogClient admin_clog;
   KeyRing keyring;
   KeyServer key_server;
 
@@ -720,8 +721,13 @@ public:
     C_Command(Monitor *_mm, MMonCommand *_m, int r, string s, bufferlist rd, version_t v) :
       mon(_mm), m(_m), rc(r), rs(s), rdata(rd), version(v){}
     void finish(int r) {
-      if (r >= 0)
+      if (r >= 0) {
+        mon->admin_clog.info()
+          << "from='" << m->get_session()->inst << "' "
+          << "entity='" << m->get_session()->auth_handler->get_entity_name()
+          << "' cmd=" << m->cmd << ": finished";
 	mon->reply_command(m, rc, rs, rdata, version);
+      }
       else if (r == -ECANCELED)
 	m->put();
       else if (r == -EAGAIN)
