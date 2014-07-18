@@ -60,9 +60,9 @@ public:
 	    enum logclient_flag_t flags);
   LogClient(CephContext *cct, Messenger *m, MonMap *mm,
             enum logclient_flag_t flags,
-            bool log_to_syslog,
-            std::string syslog_fac,
-            std::string syslog_lvl);
+            const bool *log_to_syslog,
+            const std::string *syslog_fac,
+            const std::string *syslog_lvl);
 
   bool handle_log_ack(MLogAck *m);
 
@@ -101,6 +101,10 @@ public:
   Message *get_mon_log_message();
   bool are_pending();
 
+  std::string get_log_level() { return *log_level; }
+  std::string get_log_facility() { return *log_facility; }
+  bool must_log_to_syslog() { return *log_to_syslog; }
+
 private:
   void do_log(clog_type prio, std::stringstream& ss);
   void do_log(clog_type prio, const std::string& s);
@@ -115,9 +119,9 @@ private:
   version_t last_log;
   std::deque<LogEntry> log_queue;
 
-  std::string log_facility;
-  std::string log_level;
-  bool log_to_syslog;
+  const std::string *log_facility;
+  const std::string *log_level;
+  const bool *log_to_syslog;
 
   friend class LogClientTemp;
 };

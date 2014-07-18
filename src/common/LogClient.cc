@@ -44,16 +44,16 @@ LogClient::LogClient(CephContext *cct, Messenger *m, MonMap *mm,
   : cct(cct), messenger(m), monmap(mm), is_mon(flags & FLAG_MON),
     log_lock("LogClient::log_lock"), last_log_sent(0), last_log(0)
 {
-  log_to_syslog = cct->_conf->clog_to_syslog;
-  log_facility = cct->_conf->clog_to_syslog_facility;
-  log_level = cct->_conf->clog_to_syslog_level;
+  log_to_syslog = &cct->_conf->clog_to_syslog;
+  log_facility = &cct->_conf->clog_to_syslog_facility;
+  log_level = &cct->_conf->clog_to_syslog_level;
 }
 
 LogClient::LogClient(CephContext *cct, Messenger *m, MonMap *mm,
 		     enum logclient_flag_t flags,
-                     bool log_to_syslog,
-                     string syslog_fac,
-                     string syslog_lvl)
+                     const bool *log_to_syslog,
+                     const string *syslog_fac,
+                     const string *syslog_lvl)
   : cct(cct), messenger(m), monmap(mm), is_mon(flags & FLAG_MON),
     log_lock("LogClient::log_lock"), last_log_sent(0), last_log(0),
     log_facility(syslog_fac), log_level(syslog_lvl),
@@ -100,12 +100,12 @@ void LogClient::do_log(clog_type prio, const std::string& s)
   e.seq = ++last_log;
   e.prio = prio;
   e.msg = s;
-  e.facility = log_facility;
+  e.facility = get_log_facility();
 
   // log to syslog?
-  if (log_to_syslog) {
+  if (must_log_to_syslog()) {
     ldout(cct,0) << __func__ << " log to syslog"  << dendl;
-    e.log_to_syslog(log_level, log_facility);
+    e.log_to_syslog(get_log_level(), get_log_facility());
   }
 
   // log to monitor?
@@ -194,9 +194,9 @@ bool LogClient::handle_log_ack(MLogAck *m)
   if (facility.empty())
     facility = cct->_conf->clog_to_syslog_facility;
 
-  if (facility != log_facility) {
+  if (facility == get_log_facility()) {
     ldout(cct,15) << __func__ << " msg facility '" << m->facility
-                  << "' != my facility '" << log_facility
+                  << "' != my facility '" << get_log_facility()
                   << "' -- ignore" << dendl;
     return false;
   }
