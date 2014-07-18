@@ -267,6 +267,22 @@ void Monitor::do_admin_command(string command, cmdmap_t& cmdmap, string format,
 
   boost::scoped_ptr<Formatter> f(new_formatter(format));
 
+  string args;
+  for (cmdmap_t::iterator p = cmdmap.begin();
+       p != cmdmap.end(); ++p) {
+    if (p->first == "prefix")
+      continue;
+    if (!args.empty())
+      args += ", ";
+    args += cmd_vartype_stringify(p->second);
+  }
+  args = "[" + args + "]";
+
+  admin_clog.info() << "from='admin socket' "
+                    << "entity='admin socket' "
+                    << "cmd=" << command << " "
+                    << "args=" << args << ": dispatch";
+
   if (command == "mon_status") {
     get_mon_status(f.get(), ss);
     if (f)
@@ -297,6 +313,10 @@ void Monitor::do_admin_command(string command, cmdmap_t& cmdmap, string format,
     ss << "stopped responding to quorum, initiated new election";
   } else
     assert(0 == "bad AdminSocket command binding");
+  admin_clog.info() << "from='admin socket' "
+                    << "entity='admin socket' "
+                    << "cmd=" << command << " "
+                    << "args=" << args << ": finished";
 }
 
 void Monitor::handle_signal(int signum)
