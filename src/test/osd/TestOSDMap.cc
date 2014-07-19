@@ -190,7 +190,8 @@ TEST_F(OSDMapTest, PrimaryTempRespected) {
 
   pg_t rawpg(0, 0, -1);
   pg_t pgid = osdmap.raw_pg_to_pg(rawpg);
-  vector<int> up_osds, acting_osds;
+  vector<int> up_osds;
+  vector<int> acting_osds;
   int up_primary, acting_primary;
 
   osdmap.pg_to_up_acting_osds(pgid, &up_osds, &up_primary,

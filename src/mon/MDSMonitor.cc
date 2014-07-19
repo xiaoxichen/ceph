@@ -955,6 +955,16 @@ bool MDSMonitor::management_command(
       return true;
     }
 
+    // be idempotent.. success if it already exists and matches
+    if (mdsmap.get_enabled() &&
+	mdsmap.get_metadata_pool() == metadata &&
+	mdsmap.get_first_data_pool() == data &&
+	mdsmap.fs_name == MDS_FS_NAME_DEFAULT) {
+      ss << "filesystem '" << MDS_FS_NAME_DEFAULT << "' already exists";
+      r = 0;
+      return true;
+    }
+
     string sure;
     cmd_getval(g_ceph_context, cmdmap, "sure", sure);
     if (pending_mdsmap.get_enabled() && sure != "--yes-i-really-mean-it") {
@@ -1045,6 +1055,7 @@ bool MDSMonitor::management_command(
     newmap.inc = pending_mdsmap.inc;
     pending_mdsmap = newmap;
     pending_mdsmap.epoch = mdsmap.epoch + 1;
+    pending_mdsmap.last_failure_osd_epoch = mdsmap.last_failure_osd_epoch;
     create_new_fs(pending_mdsmap, fs_name, metadata, data);
     ss << "new fs with metadata pool " << metadata << " and data pool " << data;
     r = 0;
@@ -1058,7 +1069,8 @@ bool MDSMonitor::management_command(
     if (!pending_mdsmap.get_enabled() || fs_name != pending_mdsmap.fs_name) {
         // Consider absence success to make deletes idempotent
         ss << "filesystem '" << fs_name << "' does not exist";
-        return 0;
+        r = 0;
+        return true;
     }
 
     // Check that no MDS daemons are active

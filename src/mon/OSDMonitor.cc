@@ -1465,7 +1465,7 @@ bool OSDMonitor::preprocess_pgtemp(MOSDPGTemp *m)
     goto ignore;
   }
 
-  for (map<pg_t,vector<int> >::iterator p = m->pg_temp.begin(); p != m->pg_temp.end(); ++p) {
+  for (map<pg_t,vector<int32_t> >::iterator p = m->pg_temp.begin(); p != m->pg_temp.end(); ++p) {
     dout(20) << " " << p->first
 	     << (osdmap.pg_temp->count(p->first) ? (*osdmap.pg_temp)[p->first] : empty)
              << " -> " << p->second << dendl;
@@ -1517,7 +1517,7 @@ bool OSDMonitor::prepare_pgtemp(MOSDPGTemp *m)
 {
   int from = m->get_orig_source().num();
   dout(7) << "prepare_pgtemp e" << m->map_epoch << " from " << m->get_orig_source_inst() << dendl;
-  for (map<pg_t,vector<int> >::iterator p = m->pg_temp.begin(); p != m->pg_temp.end(); ++p) {
+  for (map<pg_t,vector<int32_t> >::iterator p = m->pg_temp.begin(); p != m->pg_temp.end(); ++p) {
     uint64_t pool = p->first.pool();
     if (pending_inc.old_pools.count(pool)) {
       dout(10) << __func__ << " ignore " << p->first << " -> " << p->second
@@ -2482,6 +2482,13 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
       goto reply;
     }
 
+    if (!p->is_erasure() && var == "erasure_code_profile") {
+      ss << "pool '" << poolstr
+         << "' is not a erasure pool: variable not applicable";
+      r = -EACCES;
+      goto reply;
+    }
+
     if (f) {
       f->open_object_section("pool");
       f->dump_string("pool", poolstr);
@@ -2535,6 +2542,8 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         f->dump_unsigned("cache_min_flush_age", p->cache_min_flush_age);
       } else if (var == "cache_min_evict_age") {
         f->dump_unsigned("cache_min_evict_age", p->cache_min_evict_age);
+      } else if (var == "erasure_code_profile") {
+       f->dump_string("erasure_code_profile", p->erasure_code_profile);
       }
 
       f->close_section();
@@ -2582,6 +2591,8 @@ bool OSDMonitor::preprocess_command(MMonCommand *m)
         ss << "cache_min_flush_age: " << p->cache_min_flush_age;
       } else if (var == "cache_min_evict_age") {
         ss << "cache_min_evict_age: " << p->cache_min_evict_age;
+      } else if (var == "erasure_code_profile") {
+       ss << "erasure_code_profile: " << p->erasure_code_profile;
       }
 
       rdata.append(ss);
@@ -5924,7 +5935,7 @@ int OSDMonitor::_prepare_remove_pool(int64_t pool, ostream *ss)
       pending_inc.new_pg_temp[p->first].clear();
     }
   }
-  for (map<pg_t,int>::iterator p = osdmap.primary_temp->begin();
+  for (map<pg_t,int32_t>::iterator p = osdmap.primary_temp->begin();
       p != osdmap.primary_temp->end();
       ++p) {
     if (p->first.pool() == (uint64_t)pool) {
