@@ -421,7 +421,7 @@ class MDS : public Dispatcher, public md_config_obs_t {
   void beacon_send();
   void handle_mds_beacon(MMDSBeacon *m);
 
-  void request_osdmap(Context *c);
+  void request_osdmap(epoch_t epoch, Context *c);
 
   void inc_dispatch_depth() { ++dispatch_depth; }
   void dec_dispatch_depth() { --dispatch_depth; }
