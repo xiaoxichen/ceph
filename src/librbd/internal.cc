@@ -24,6 +24,10 @@
 
 #include "librados/snap_set_diff.h"
 
+#ifdef WITH_LTTNG
+#include "tracing/librbd.h"
+#endif
+
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
 #define dout_prefix *_dout << "librbd: "
@@ -3022,9 +3026,10 @@ reprotect_and_return_err:
 	c->add_request();
 
 	req->set_op_flags(op_flags);
-	r = req->send();
-	if (r < 0)
+	ceph_tid_t tid = req->send();
+	if (tid < 0)
 	  goto done;
+	tracepoint(librbd, aio_subreq_sent, req, tid, p->oid.name.c_str(), p->offset, bl.length(), c);
       }
     }
   done:

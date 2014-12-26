@@ -569,7 +569,7 @@ int librados::IoCtxImpl::aio_operate_read(const object_t &oid,
   return 0;
 }
 
-int librados::IoCtxImpl::aio_operate(const object_t& oid,
+uint64_t librados::IoCtxImpl::aio_operate(const object_t& oid,
 				     ::ObjectOperation *o, AioCompletionImpl *c,
 				     const SnapContext& snap_context, int flags)
 {
@@ -587,7 +587,7 @@ int librados::IoCtxImpl::aio_operate(const object_t& oid,
   c->tid = objecter->mutate(oid, oloc, *o, snap_context, ut, flags, onack, oncommit,
 		            &c->objver);
 
-  return 0;
+  return c->tid;
 }
 
 int librados::IoCtxImpl::aio_read(const object_t oid, AioCompletionImpl *c,

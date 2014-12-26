@@ -376,6 +376,24 @@ TRACEPOINT_EVENT(librbd, aio_write_exit,
     )
 )
 
+TRACEPOINT_EVENT(librbd, aio_subreq_sent,
+    TP_ARGS(
+	const void*, req,
+	uint64_t, tid,
+        const char*, oid,
+        uint64_t, off,
+        size_t, len,
+        const void*, completion),
+    TP_FIELDS(
+        ctf_integer_hex(void*, req, req)
+        ctf_integer_hex(uint64_t, tid, tid)
+        ctf_string(oid, oid)
+        ctf_integer(uint64_t, off, off)
+        ctf_integer(size_t, len, len)
+        ctf_integer_hex(const void*, completion, completion)
+    )
+)
+
 TRACEPOINT_EVENT(librbd, aio_read_enter,
     TP_ARGS(
         void*, imagectx,

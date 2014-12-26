@@ -141,7 +141,7 @@ struct librados::IoCtxImpl {
 
   int operate(const object_t& oid, ::ObjectOperation *o, time_t *pmtime, int flags=0);
   int operate_read(const object_t& oid, ::ObjectOperation *o, bufferlist *pbl, int flags=0);
-  int aio_operate(const object_t& oid, ::ObjectOperation *o,
+  ceph_tid_t aio_operate(const object_t& oid, ::ObjectOperation *o,
 		  AioCompletionImpl *c, const SnapContext& snap_context,
 		  int flags);
   int aio_operate_read(const object_t& oid, ::ObjectOperation *o,

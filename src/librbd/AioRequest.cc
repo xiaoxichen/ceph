@@ -85,7 +85,7 @@ namespace librbd {
     return true;
   }
 
-  int AioRead::send() {
+  uint64_t AioRead::send() {
     ldout(m_ictx->cct, 20) << "send " << this << " " << m_oid << " " << m_object_off << "~" << m_object_len << dendl;
 
     librados::AioCompletion *rados_completion =
@@ -226,11 +226,11 @@ namespace librbd {
     return finished;
   }
 
-  int AbstractWrite::send() {
+  ceph_tid_t AbstractWrite::send() {
     ldout(m_ictx->cct, 20) << "send " << this << " " << m_oid << " " << m_object_off << "~" << m_object_len << dendl;
     librados::AioCompletion *rados_completion =
       librados::Rados::aio_create_completion(this, NULL, rados_req_cb);
-    int r;
+    ceph_tid_t r;
     assert(m_write.size());
     r = m_ioctx->aio_operate(m_oid, rados_completion, &m_write,
 			     m_snap_seq, m_snaps);
