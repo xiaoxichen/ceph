@@ -3572,7 +3572,7 @@ extern "C" int rados_aio_create_completion(void *cb_arg,
     c->set_safe_callback(cb_arg, cb_safe);
   *pc = c;
   int retval = 0;
-  tracepoint(librados, rados_aio_create_completion_exit, retval, *pc);
+  tracepoint(librados, rados_aio_create_completion_exit, retval, cb_arg, *pc);
   return retval;
 }
 

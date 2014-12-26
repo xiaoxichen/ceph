@@ -1813,9 +1813,11 @@ TRACEPOINT_EVENT(librados, rados_aio_create_completion_enter,
 TRACEPOINT_EVENT(librados, rados_aio_create_completion_exit,
     TP_ARGS(
         int, retval,
+        void*, cb_arg,
         rados_completion_t, completion),
     TP_FIELDS(
         ctf_integer(int, retval, retval)
+        ctf_integer_hex(void*, cb_arg, cb_arg)
         ctf_integer_hex(rados_completion_t, completion, completion)
     )
 )
