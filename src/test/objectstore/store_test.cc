@@ -1746,7 +1746,7 @@ void colsplittest(
 	  "",
 	  CEPH_NOSNAP,
 	  i<<common_suffix_size,
-	  0, "")));
+	  52, "")));
     }
     r = store->apply_transaction(t);
     ASSERT_EQ(r, 0);
@@ -1754,7 +1754,7 @@ void colsplittest(
   {
     ObjectStore::Transaction t;
     t.create_collection(tid, common_suffix_size + 1);
-    t.split_collection(cid, common_suffix_size+1, 0, tid);
+    t.split_collection(cid, common_suffix_size+1, 1, tid);
     r = store->apply_transaction(t);
     ASSERT_EQ(r, 0);
   }
@@ -1767,7 +1767,7 @@ void colsplittest(
   for (vector<ghobject_t>::iterator i = objects.begin();
        i != objects.end();
        ++i) {
-    ASSERT_EQ(!(i->hobj.get_hash() & (1<<common_suffix_size)), 0u);
+    ASSERT_EQ(!!(i->hobj.get_hash() & (1<<common_suffix_size)), 0u);
     t.remove(cid, *i);
   }
 
@@ -1778,7 +1778,7 @@ void colsplittest(
   for (vector<ghobject_t>::iterator i = objects.begin();
        i != objects.end();
        ++i) {
-    ASSERT_EQ(i->hobj.get_hash() & (1<<common_suffix_size), 0u);
+    ASSERT_EQ(!(i->hobj.get_hash() & (1<<common_suffix_size)), 0u);
     t.remove(tid, *i);
   }
 
