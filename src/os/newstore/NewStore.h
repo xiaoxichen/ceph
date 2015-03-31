@@ -202,6 +202,8 @@ public:
     Mutex lock;
     Cond cond;
 
+    CollectionRef first_collection;  ///< first referenced collection
+
     TransContext(OpSequencer *o)
       : state(STATE_PREPARE),
 	osr(o),

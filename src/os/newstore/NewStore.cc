@@ -31,8 +31,6 @@
 
   TODO:
 
-  * collection_list_range
-  * lru trimming
   * lru get_next more efficient (intrusive_ptr?)
   * sequencer flush machinery
   * sequencer op ordering
@@ -55,6 +53,7 @@
   * open-by-handle
   * avoid mtime updates when doing open-by-handle
   * abstract out fs specifics
+  * kill collection_list_range
 
  */
 
@@ -452,7 +451,6 @@ int NewStore::OnodeHashLRU::trim(int max)
   if (num)
     p--;
   while (num > 0) {
-    assert(p != lru.begin());
     Onode *o = &*p;
     int refs = o->nref.read();
     if (refs > 1) {
@@ -461,10 +459,16 @@ int NewStore::OnodeHashLRU::trim(int max)
       break;
     }
     dout(30) << __func__ << "  trim " << o->oid << dendl;
-    lru.erase(p--);
+    if (p != lru.begin()) {
+      lru.erase(p--);
+    } else {
+      lru.erase(p);
+      assert(num == 1);
+    }
     o->get();  // paranoia
     onode_map.erase(o->oid);
     o->put();
+    --num;
     ++trimmed;
   }
   return trimmed;
@@ -2187,6 +2191,11 @@ void NewStore::_osr_reap_done(OpSequencer *osr)
     if (txc->state != TransContext::STATE_DONE) {
       break;
     }
+
+    if (txc->first_collection) {
+      txc->first_collection->onode_map.trim(g_conf->newstore_onode_map_size);
+    }
+
     osr->q.pop_front();
     delete txc;
     osr->qcond.Signal();
@@ -2423,6 +2432,10 @@ int NewStore::_do_transaction(Transaction *t,
   for (vector<coll_t>::iterator p = i.colls.begin(); p != i.colls.end();
        ++p, ++j) {
     cvec[j] = _get_collection(*p);
+
+    // note first collection we reference
+    if (!j && !txc->first_collection)
+      txc->first_collection = cvec[j];
   }
 
   while (i.have_op()) {
