@@ -31,7 +31,6 @@
 
   TODO:
 
-  * omap
   * collection_list_range
   * lru trimming
   * lru get_next more efficient (intrusive_ptr?)
@@ -1445,19 +1444,71 @@ int NewStore::collection_list_range(
     return -ENOENT;
   RWLock::RLocker l(c->lock);
   int r = 0;
-  pair<ghobject_t,OnodeRef> next;
-  next.first = start;
-  assert(0 == "write me");
+  KeyValueDB::Iterator it;
+  string temp_start_key, temp_end_key;
+  string start_key, end_key;
+  string end_str;
+  const char *pend;
+  bool temp;
+
+  if (start == ghobject_t::get_max() || end == ghobject_t())
+    goto out;
+  get_coll_key_range(cid, c->cnode.bits, &temp_start_key, &temp_end_key,
+		     &start_key, &end_key);
+  dout(20) << __func__ << " range " << temp_start_key << " to "
+	   << temp_end_key << " and " << start_key << " to " << end_key
+	   << " start " << start << " end " << end << dendl;
+  it = db->get_iterator(PREFIX_OBJ);
+  if (start == ghobject_t()) {
+    it->upper_bound(temp_start_key);
+    temp = true;
+  } else {
+    string k;
+    get_object_key(start, &k);
+    if (start.hobj.is_temp()) {
+      temp = true;
+      assert(k >= temp_start_key && k < temp_end_key);
+    } else {
+      temp = false;
+      assert(k >= start_key && k < end_key);
+    }
+    it->upper_bound(k);
+  }
+  get_object_key(end, &end_str);
+  if (end.hobj.is_temp()) {
+    if (temp)
+      pend = end_str.c_str();
+    else
+      goto out;
+  } else {
+    pend = temp ? temp_end_key.c_str() : end_str.c_str();
+  }
   while (true) {
-    if (!c->onode_map.get_next(next.first, &next)) {
+    if (!it->valid() || strcmp(it->key().c_str(), pend) > 0) {
+      if (!it->valid())
+	dout(20) << __func__ << " iterator not valid (end of db?)" << dendl;
+      else
+	dout(20) << __func__ << " key " << it->key() << " > " << pend << dendl;
+      if (temp) {
+	if (end.hobj.is_temp()) {
+	  break;
+	}
+	dout(30) << __func__ << " switch to non-temp namespace" << dendl;
+	temp = false;
+	it->upper_bound(start_key);
+	pend = end_str.c_str();
+	continue;
+      }
       break;
     }
-    if (next.second->exists) {
-      if (next.first >= end)
-	break;
-      ls->push_back(next.first);
-    }
+    dout(20) << __func__ << " key " << it->key() << dendl;
+    ghobject_t oid;
+    int r = get_key_object(it->key(), &oid);
+    assert(r == 0);
+    ls->push_back(oid);
+    it->next();
   }
+ out:
   dout(10) << __func__ << " " << cid
 	   << " start " << start << " end " << end
 	   << " snap " << seq << " = " << r << dendl;
