@@ -2786,6 +2786,10 @@ int NewStore::_do_write(TransContext *txc,
 
   o->exists = true;
 
+  if (length == 0) {
+    dout(20) << __func__ << " zero-length write" << dendl;
+    goto out;
+  }
   if (o->onode.size == offset ||
       o->onode.size == 0 ||
       o->onode.data_map.empty()) {
