@@ -148,6 +148,13 @@ public:
 
   class OpSequencer;
 
+  struct fsync_item {
+    boost::intrusive::list_member_hook<> queue_item;
+    int fd;
+    TransContext *txc;
+    fsync_item(int f, TransContext *t) : fd(f), txc(t) {}
+  };
+
   struct TransContext {
     typedef enum {
       STATE_PREPARE,
@@ -187,7 +194,7 @@ public:
     OpSequencer *osr;
     boost::intrusive::list_member_hook<> sequencer_item;
 
-    list<int> fds;             ///< these fds need to be synced
+    list<fsync_item> fds;     ///< these fds need to be synced
     set<OnodeRef> onodes;     ///< these onodes need to be updated/written
     KeyValueDB::Transaction t; ///< then we will commit this
     Context *oncommit;         ///< signal on commit
@@ -221,7 +228,7 @@ public:
     }
 
     void sync_fd(int f) {
-      fds.push_back(f);
+      fds.push_back(fsync_item(f, this));
     }
     void write_onode(OnodeRef &o) {
       onodes.insert(o);
@@ -294,14 +301,17 @@ public:
     }
   };
 
-  struct fsync_item {
-    int fd;
-    TransContext *txc;
-    fsync_item(int f, TransContext *t) : fd(f), txc(t) {}
-  };
   class FsyncWQ : public ThreadPool::WorkQueue<fsync_item> {
+  public:
+    typedef boost::intrusive::list<
+      fsync_item,
+      boost::intrusive::member_hook<
+        fsync_item,
+	boost::intrusive::list_member_hook<>,
+	&fsync_item::queue_item> > fsync_queue_t;
+  private:
     NewStore *store;
-    deque<fsync_item*> fd_queue;
+    fsync_queue_t fd_queue;
 
   public:
     FsyncWQ(NewStore *s, time_t ti, time_t sti, ThreadPool *tp)
@@ -312,7 +322,7 @@ public:
       return fd_queue.empty();
     }
     bool _enqueue(fsync_item *i) {
-      fd_queue.push_back(i);
+      fd_queue.push_back(*i);
       return true;
     }
     void _dequeue(fsync_item *p) {
@@ -321,7 +331,7 @@ public:
     fsync_item *_dequeue() {
       if (fd_queue.empty())
 	return NULL;
-      fsync_item *i = fd_queue.front();
+      fsync_item *i = &fd_queue.front();
       fd_queue.pop_front();
       return i;
     }
@@ -329,10 +339,7 @@ public:
       store->_txc_process_fsync(i);
     }
     void _clear() {
-      while (!fd_queue.empty()) {
-	delete fd_queue.front();
-	fd_queue.pop_front();
-      }
+      fd_queue.clear();
     }
 
     void flush() {

@@ -2022,7 +2022,6 @@ void NewStore::_txc_process_fsync(fsync_item *i)
     _txc_finish_fsync(i->txc);
   }
   dout(20) << __func__ << " txc " << i->txc << " done" << dendl;
-  delete i;
 }
 
 void NewStore::_txc_finish_fsync(TransContext *txc)
@@ -2090,10 +2089,10 @@ void NewStore::_txc_queue_fsync(TransContext *txc)
   dout(20) << __func__ << " txc " << txc << dendl;
   txc->state = TransContext::STATE_FSYNC_QUEUED;
   fsync_wq.lock();
-  for (list<int>::iterator p = txc->fds.begin();
+  for (list<fsync_item>::iterator p = txc->fds.begin();
        p != txc->fds.end();
        ++p) {
-    fsync_wq._enqueue(new fsync_item(*p, txc));
+    fsync_wq._enqueue(&*p);
     fsync_wq._wake();
   }
   fsync_wq.unlock();
@@ -2406,14 +2405,16 @@ int NewStore::queue_transactions(
 
     // sync
     txc->state = TransContext::STATE_FSYNC_FSYNCING;
-    for (list<int>::iterator p = txc->fds.begin(); p != txc->fds.end(); ++p) {
-      dout(30) << __func__ << " fsync " << *p << dendl;
-      int r = ::fsync(*p);
+    for (list<fsync_item>::iterator p = txc->fds.begin();
+	 p != txc->fds.end(); ++p) {
+      dout(30) << __func__ << " fsync " << p->fd << dendl;
+      int r = ::fsync(p->fd);
       if (r < 0) {
 	r = -errno;
 	derr << __func__ << " fsync: " << cpp_strerror(r) << dendl;
 	return r;
       }
+      VOID_TEMP_FAILURE_RETRY(::close(p->fd));
     }
 
     txc->state = TransContext::STATE_KV_COMMITTING;
