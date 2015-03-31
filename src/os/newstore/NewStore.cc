@@ -326,7 +326,8 @@ void get_omap_tail(uint64_t id, string *out)
 // Onode
 
 NewStore::Onode::Onode(const ghobject_t& o, const string& k)
-  : oid(o),
+  : nref(0),
+    oid(o),
     key(k),
     dirty(false),
     exists(true),
@@ -438,6 +439,35 @@ bool NewStore::OnodeHashLRU::get_next(
   next->first = pi->oid;
   next->second = onode_map[pi->oid];
   return true;
+}
+
+int NewStore::OnodeHashLRU::trim(int max)
+{
+  Mutex::Locker l(lock);
+  dout(20) << __func__ << " max " << max
+	   << " size " << onode_map.size() << dendl;
+  int trimmed = 0;
+  int num = onode_map.size() - max;
+  lru_list_t::iterator p = lru.end();
+  if (num)
+    p--;
+  while (num > 0) {
+    assert(p != lru.begin());
+    Onode *o = &*p;
+    int refs = o->nref.read();
+    if (refs > 1) {
+      dout(20) << __func__ << "  " << o->oid << " has " << refs
+	       << " refs; stopping with " << num << " left to trim" << dendl;
+      break;
+    }
+    dout(30) << __func__ << "  trim " << o->oid << dendl;
+    lru.erase(p--);
+    o->get();  // paranoia
+    onode_map.erase(o->oid);
+    o->put();
+    ++trimmed;
+  }
+  return trimmed;
 }
 
 // =======================================================

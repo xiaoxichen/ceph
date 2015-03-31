@@ -56,6 +56,8 @@ public:
 
   /// an in-memory object
   struct Onode {
+    atomic_t nref;  ///< reference count
+
     ghobject_t oid;
     string key;     ///< key under PREFIX_OBJ where we are stored
     boost::intrusive::list_member_hook<> lru_item;
@@ -75,8 +77,15 @@ public:
       while (!flush_txns.empty())
 	flush_cond.Wait(flush_lock);
     }
+    void get() {
+      nref.inc();
+    }
+    void put() {
+      if (nref.dec() == 0)
+	delete this;
+    }
   };
-  typedef ceph::shared_ptr<Onode> OnodeRef;
+  typedef boost::intrusive_ptr<Onode> OnodeRef;
 
   struct OnodeHashLRU {
     typedef boost::intrusive::list<
@@ -99,6 +108,7 @@ public:
     void rename(const ghobject_t& old_oid, const ghobject_t& new_oid);
     void clear();
     bool get_next(const ghobject_t& after, pair<ghobject_t,OnodeRef> *next);
+    int trim(int max=-1);
   };
 
   struct Collection {
@@ -685,6 +695,13 @@ private:
 
 inline ostream& operator<<(ostream& out, const NewStore::OpSequencer& s) {
   return out << *s.parent;
+}
+
+static inline void intrusive_ptr_add_ref(NewStore::Onode *o) {
+  o->get();
+}
+static inline void intrusive_ptr_release(NewStore::Onode *o) {
+  o->put();
 }
 
 #endif
