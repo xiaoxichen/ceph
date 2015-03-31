@@ -31,7 +31,6 @@
 
   TODO:
 
-  * prealloc fids
   * hobject sorting
   * use intrusive for fsync queue
   * rename: we need to fix shared_cache to allow rename (Cleanup class has a
@@ -1879,11 +1878,11 @@ int NewStore::_recover_next_fid()
   } catch (buffer::error& e) {
   }
   dout(1) << __func__ << " old fid_max " << fid_max << dendl;
-  fid_cur = fid_max;
+  fid_last = fid_max;
 
-  if (fid_cur.fset > 0) {
+  if (fid_last.fset > 0) {
     char s[32];
-    snprintf(s, sizeof(s), "%u", fid_cur.fset);
+    snprintf(s, sizeof(s), "%u", fid_last.fset);
     assert(fset_fd < 0);
     fset_fd = ::openat(frag_fd, s, O_DIRECTORY, 0644);
     if (fset_fd < 0) {
@@ -1912,15 +1911,15 @@ int NewStore::_create_fid(TransContext *txc, fid_t *fid)
 {
   {
     Mutex::Locker l(fid_lock);
-    if (fid_cur.fset > 0 &&
-	fid_cur.fno > 0 &&
-	fid_cur.fset == fid_max.fset &&
-	fid_cur.fno < fid_max.fno) {
-      ++fid_cur.fno;
-    } else if (fid_cur.fset > 0 &&
-	       fid_cur.fno > 0 &&
-	       fid_cur.fset == fid_max.fset &&
-	       fid_cur.fno < g_conf->newstore_max_dir_size) {
+    if (fid_last.fset > 0 &&
+	fid_last.fno > 0 &&
+	fid_last.fset == fid_max.fset &&
+	fid_last.fno < fid_max.fno) {
+      ++fid_last.fno;
+    } else if (fid_last.fset > 0 &&
+	       fid_last.fno > 0 &&
+	       fid_last.fset == fid_max.fset &&
+	       fid_last.fno < g_conf->newstore_max_dir_size) {
       // raise fid_max, same fset
       fid_max.fno += g_conf->newstore_fid_prealloc;
       bufferlist bl;
@@ -1929,11 +1928,11 @@ int NewStore::_create_fid(TransContext *txc, fid_t *fid)
       dout(10) << __func__ << " fid_max now " << fid_max << dendl;
     } else {
       // new fset
-      ++fid_cur.fset;
-      fid_cur.fno = 1;
-      dout(10) << __func__ << " creating " << fid_cur.fset << dendl;
+      ++fid_last.fset;
+      fid_last.fno = 1;
+      dout(10) << __func__ << " creating " << fid_last.fset << dendl;
       char s[32];
-      snprintf(s, sizeof(s), "%u", fid_cur.fset);
+      snprintf(s, sizeof(s), "%u", fid_last.fset);
       int r = ::mkdirat(frag_fd, s, 0755);
       if (r < 0) {
 	r = -errno;
@@ -1950,17 +1949,17 @@ int NewStore::_create_fid(TransContext *txc, fid_t *fid)
 	     << s << ": " << cpp_strerror(r) << dendl;
       }
 
-      fid_max = fid_cur;
+      fid_max = fid_last;
       fid_max.fno = g_conf->newstore_fid_prealloc;
       bufferlist bl;
       ::encode(fid_max, bl);
       txc->t->set(PREFIX_SUPER, "fid_max", bl);
       dout(10) << __func__ << " fid_max now " << fid_max << dendl;
     }
-    *fid = fid_cur;
+    *fid = fid_last;
   }
 
-  dout(10) << __func__ << " " << fid_cur << dendl;
+  dout(10) << __func__ << " " << fid_last << dendl;
   char s[32];
   snprintf(s, sizeof(s), "%u", fid->fno);
   int fd = ::openat(fset_fd, s, O_RDWR|O_CREAT, 0644);
