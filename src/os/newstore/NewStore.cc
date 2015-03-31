@@ -1321,22 +1321,15 @@ bool NewStore::collection_exists(coll_t c)
 bool NewStore::collection_empty(coll_t cid)
 {
   dout(15) << __func__ << " " << cid << dendl;
-  CollectionRef c = _get_collection(cid);
-  if (!c)
-    return -ENOENT;
-  RWLock::RLocker l(c->lock);
-
-  bool r = true;
-  pair<ghobject_t,OnodeRef> next;
-  while (c->onode_map.get_next(next.first, &next)) {
-    if (next.second->exists) {
-      r = false;
-      break;
-    }
-  }
-
-  dout(10) << __func__ << " " << cid << " = " << (int)r << dendl;
-  return r;
+  vector<ghobject_t> ls;
+  ghobject_t next;
+  int r = collection_list_partial(cid, ghobject_t(), 5, 5, CEPH_NOSNAP,
+				  &ls, &next);
+  if (r < 0)
+    return false;  // fixme?
+  bool empty = ls.empty();
+  dout(10) << __func__ << " " << cid << " = " << (int)empty << dendl;
+  return empty;
 }
 
 int NewStore::collection_list(coll_t cid, vector<ghobject_t>& o)
