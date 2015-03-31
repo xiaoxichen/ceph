@@ -369,7 +369,8 @@ private:
   ceph::unordered_map<coll_t, CollectionRef> coll_map;
 
   Mutex fid_lock;
-  fid_t fid_cur;
+  fid_t fid_cur;   ///< last allocated fid
+  fid_t fid_max;   ///< max fid we can allocate before reserving more
 
   atomic64_t omap_id;
 
@@ -421,7 +422,7 @@ private:
   void _reap_collections();
 
   int _recover_next_fid();
-  int _create_fid(fid_t *fid);
+  int _create_fid(TransContext *txc, fid_t *fid);
   int _open_fid(fid_t fid);
   int _remove_fid(fid_t fid);
 

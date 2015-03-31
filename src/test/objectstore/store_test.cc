@@ -93,11 +93,16 @@ TEST_P(StoreTest, TrivialRemount) {
 
 TEST_P(StoreTest, SimpleRemount) {
   coll_t cid;
+  ghobject_t hoid(hobject_t(sobject_t("Object 1", CEPH_NOSNAP)));
+  ghobject_t hoid2(hobject_t(sobject_t("Object 2", CEPH_NOSNAP)));
+  bufferlist bl;
+  bl.append("1234512345");
   int r;
   {
+    cerr << "create collection + write" << std::endl;
     ObjectStore::Transaction t;
     t.create_collection(cid, 0);
-    cerr << "create collection" << std::endl;
+    t.write(cid, hoid, 0, bl.length(), bl);
     r = store->apply_transaction(t);
     ASSERT_EQ(r, 0);
   }
@@ -106,6 +111,14 @@ TEST_P(StoreTest, SimpleRemount) {
   ASSERT_EQ(0, r);
   {
     ObjectStore::Transaction t;
+    t.write(cid, hoid2, 0, bl.length(), bl);
+    r = store->apply_transaction(t);
+    ASSERT_EQ(r, 0);
+  }
+  {
+    ObjectStore::Transaction t;
+    t.remove(cid, hoid);
+    t.remove(cid, hoid2);
     t.remove_collection(cid);
     cerr << "remove collection" << std::endl;
     r = store->apply_transaction(t);

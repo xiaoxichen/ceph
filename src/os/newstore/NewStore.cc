@@ -31,9 +31,6 @@
 
   TODO:
 
-  * lru get_next more efficient (intrusive_ptr?)
-  * sequencer flush machinery
-  * sequencer op ordering
   * prealloc fids
   * hobject sorting
   * use intrusive for fsync queue
@@ -57,6 +54,7 @@
 
  */
 
+const string PREFIX_SUPER = "S"; // field -> value
 const string PREFIX_COLL = "C"; // collection name -> (nothing)
 const string PREFIX_OBJ = "O";  // object name -> onode
 const string PREFIX_OMAP = "M"; // u64 + keyname -> value
@@ -658,6 +656,10 @@ int NewStore::_create_frag()
 
 void NewStore::_close_frag()
 {
+  if (fset_fd >= 0) {
+    VOID_TEMP_FAILURE_RETRY(::close(fset_fd));
+    fset_fd = -1;
+  }
   VOID_TEMP_FAILURE_RETRY(::close(frag_fd));
   frag_fd = -1;
 }
@@ -1870,31 +1872,27 @@ void NewStore::_get_omap_id(TransContext *txc, OnodeRef o)
 
 int NewStore::_recover_next_fid()
 {
-  unsigned i=1;
-  while (true) {
-    char fn[32];
-    snprintf(fn, sizeof(fn), "%u", i);
-    struct stat st;
-    derr << "frag_fd " << frag_fd << " fn " << fn << dendl;
-    int r = ::fstatat(frag_fd, fn, &st, 0);
-    if (r == 0) {
-      ++i;
-      continue;
-    }
-    r = -errno;
-    if (r == -ENOENT)
-      break;
-    assert(r < 0);
-    derr << __func__ << " failed to stat " << path << "/fragments/" << fn
-	 << ": " << cpp_strerror(r) << dendl;
-    return r;
+  bufferlist bl;
+  db->get(PREFIX_SUPER, "fid_max", &bl);
+  try {
+    ::decode(fid_max, bl);
+  } catch (buffer::error& e) {
   }
-  fid_cur.fset = i - 1;
-  fid_cur.fno = 0;
-  dout(10) << __func__ << " stopped somewhere in " << fid_cur << dendl;
+  dout(1) << __func__ << " old fid_max " << fid_max << dendl;
+  fid_cur = fid_max;
 
-  // FIXME: we should probably recover fno too so that we don't create
-  // a new fset dir on every daemon restart.
+  if (fid_cur.fset > 0) {
+    char s[32];
+    snprintf(s, sizeof(s), "%u", fid_cur.fset);
+    assert(fset_fd < 0);
+    fset_fd = ::openat(frag_fd, s, O_DIRECTORY, 0644);
+    if (fset_fd < 0) {
+      int r = -errno;
+      derr << __func__ << " cannot open created " << path << "/fragments/"
+	 << s << ": " << cpp_strerror(r) << dendl;
+      return r;
+    }
+  }
 
   return 0;
 }
@@ -1910,15 +1908,27 @@ int NewStore::_open_fid(fid_t fid)
   return fd;
 }
 
-int NewStore::_create_fid(fid_t *fid)
+int NewStore::_create_fid(TransContext *txc, fid_t *fid)
 {
   {
     Mutex::Locker l(fid_lock);
     if (fid_cur.fset > 0 &&
 	fid_cur.fno > 0 &&
-	fid_cur.fno < g_conf->newstore_max_dir_size) {
+	fid_cur.fset == fid_max.fset &&
+	fid_cur.fno < fid_max.fno) {
       ++fid_cur.fno;
+    } else if (fid_cur.fset > 0 &&
+	       fid_cur.fno > 0 &&
+	       fid_cur.fset == fid_max.fset &&
+	       fid_cur.fno < g_conf->newstore_max_dir_size) {
+      // raise fid_max, same fset
+      fid_max.fno += g_conf->newstore_fid_prealloc;
+      bufferlist bl;
+      ::encode(fid_max, bl);
+      txc->t->set(PREFIX_SUPER, "fid_max", bl);
+      dout(10) << __func__ << " fid_max now " << fid_max << dendl;
     } else {
+      // new fset
       ++fid_cur.fset;
       fid_cur.fno = 1;
       dout(10) << __func__ << " creating " << fid_cur.fset << dendl;
@@ -1939,6 +1949,13 @@ int NewStore::_create_fid(fid_t *fid)
 	derr << __func__ << " cannot open created " << path << "/fragments/"
 	     << s << ": " << cpp_strerror(r) << dendl;
       }
+
+      fid_max = fid_cur;
+      fid_max.fno = g_conf->newstore_fid_prealloc;
+      bufferlist bl;
+      ::encode(fid_max, bl);
+      txc->t->set(PREFIX_SUPER, "fid_max", bl);
+      dout(10) << __func__ << " fid_max now " << fid_max << dendl;
     }
     *fid = fid_cur;
   }
@@ -2775,7 +2792,7 @@ int NewStore::_do_write(TransContext *txc,
       fragment_t &f = o->onode.data_map[0];
       f.offset = 0;
       f.length = MAX(offset + length, o->onode.size);
-      fd = _create_fid(&f.fid);
+      fd = _create_fid(txc, &f.fid);
       if (fd < 0) {
 	r = fd;
 	goto out;
