@@ -1917,18 +1917,17 @@ int NewStore::_create_fid(TransContext *txc, fid_t *fid)
     if (fid_last.fset > 0 &&
 	fid_last.fno > 0 &&
 	fid_last.fset == fid_max.fset &&
-	fid_last.fno < fid_max.fno) {
+	fid_last.fno < g_conf->newstore_max_dir_size) {
       ++fid_last.fno;
-    } else if (fid_last.fset > 0 &&
-	       fid_last.fno > 0 &&
-	       fid_last.fset == fid_max.fset &&
-	       fid_last.fno < g_conf->newstore_max_dir_size) {
-      // raise fid_max, same fset
-      fid_max.fno += g_conf->newstore_fid_prealloc;
-      bufferlist bl;
-      ::encode(fid_max, bl);
-      txc->t->set(PREFIX_SUPER, "fid_max", bl);
-      dout(10) << __func__ << " fid_max now " << fid_max << dendl;
+      if (fid_last.fno >= fid_max.fno) {
+	// raise fid_max, same fset
+	fid_max.fno += g_conf->newstore_fid_prealloc;
+	assert(fid_max.fno >= fid_last.fno);
+	bufferlist bl;
+	::encode(fid_max, bl);
+	txc->t->set(PREFIX_SUPER, "fid_max", bl);
+	dout(10) << __func__ << " fid_max now " << fid_max << dendl;
+      }
     } else {
       // new fset
       ++fid_last.fset;
