@@ -1901,8 +1901,11 @@ int NewStore::_open_fid(fid_t fid)
   char fn[32];
   snprintf(fn, sizeof(fn), "%u/%u", fid.fset, fid.fno);
   int fd = ::openat(frag_fd, fn, O_RDWR);
-  if (fd < 0)
-    return -errno;
+  if (fd < 0) {
+    int r = -errno;
+    derr << __func__ << " on " << fid << ": " << cpp_strerror(r) << dendl;
+    return r;
+  }
   dout(30) << __func__ << " " << fid << " = " << fd << dendl;
   return fd;
 }
@@ -2818,8 +2821,10 @@ int NewStore::_do_write(TransContext *txc,
       o->onode.size = offset + length;
     }
     r = bl.write_fd(fd);
-    if (r < 0)
+    if (r < 0) {
+      derr << __func__ << " bl.write_fd error: " << cpp_strerror(r) << dendl;
       goto out;
+    }
     txc->sync_fd(fd);
   } else {
     // WAL
