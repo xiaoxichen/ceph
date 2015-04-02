@@ -1995,7 +1995,7 @@ void colsplittest(
   {
     ObjectStore::Transaction t;
     t.create_collection(tid, common_suffix_size + 1);
-    t.split_collection(cid, common_suffix_size+1, 1, tid);
+    t.split_collection(cid, common_suffix_size+1, 1<<common_suffix_size, tid);
     r = store->apply_transaction(t);
     ASSERT_EQ(r, 0);
   }
