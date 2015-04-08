@@ -537,8 +537,8 @@ NewStore::OnodeRef NewStore::Collection::get_onode(
   int r = store->db->get(PREFIX_OBJ, key, &v);
   dout(20) << " r " << r << " v.len " << v.length() << dendl;
   Onode *on;
-  assert(r >= 0);
   if (v.length() == 0) {
+    assert(r == -ENOENT);
     if (!create)
       return OnodeRef();
 
@@ -547,6 +547,7 @@ NewStore::OnodeRef NewStore::Collection::get_onode(
     on->dirty = true;
   } else {
     // loaded
+    assert(r >= 0);
     on = new Onode(oid, key);
     bufferlist::iterator p = v.begin();
     ::decode(on->onode, p);
@@ -1382,8 +1383,9 @@ int NewStore::list_collections(vector<coll_t>& ls)
   RWLock::RLocker l(coll_lock);
   for (ceph::unordered_map<coll_t, CollectionRef>::iterator p = coll_map.begin();
        p != coll_map.end();
-       ++p)
+       ++p) {
     ls.push_back(p->first);
+  }
   return 0;
 }
 
@@ -1619,8 +1621,8 @@ int NewStore::collection_list_range(
 
 // omap reads
 
-NewStore::OmapIteratorImpl::OmapIteratorImpl(CollectionRef c, OnodeRef o)
-  : c(c), o(o)
+NewStore::OmapIteratorImpl::OmapIteratorImpl(CollectionRef c, OnodeRef o, KeyValueDB::Iterator it)
+  : c(c), o(o), it(it)
 {
   RWLock::RLocker l(c->lock);
   if (o->onode.omap_head) {
@@ -1687,7 +1689,7 @@ string NewStore::OmapIteratorImpl::key()
 {
   RWLock::RLocker l(c->lock);
   assert(it->valid());
-  return it->key();
+  return it->raw_key().second;
 }
 
 bufferlist NewStore::OmapIteratorImpl::value()
@@ -1902,6 +1904,17 @@ ObjectMap::ObjectMapIterator NewStore::get_omap_iterator(
   const ghobject_t &oid  ///< [in] object
   )
 {
+
+  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  CollectionRef c = _get_collection(cid);
+  if (!c)
+    return ObjectMap::ObjectMapIterator();
+  RWLock::RLocker l(c->lock);
+  OnodeRef o = c->get_onode(oid, false);
+  if (!o)
+    return ObjectMap::ObjectMapIterator();
+  KeyValueDB::Iterator it = db->get_iterator(PREFIX_OMAP);
+  return ObjectMap::ObjectMapIterator(new OmapIteratorImpl(c, o, it));
   assert(0);
 }
 
