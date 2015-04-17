@@ -131,6 +131,8 @@ int RocksDBStore::do_open(ostream &out, bool create_if_missing)
 
   //apply env setting
   ldoptions.env = env;
+  //statistic dump
+  ldoptions.stats_dump_period_sec = g_conf->rocksdb_stats_dump_period_sec;
   //rocksdb::DB *_db;
   rocksdb::Status status = rocksdb::DB::Open(ldoptions, path, &db);
   if (!status.ok()) {

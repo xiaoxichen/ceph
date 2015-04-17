@@ -728,6 +728,7 @@ OPTION(rocksdb_info_log_level, OPT_STR, "info")  // info log level : debug , inf
 OPTION(rocksdb_wal_dir, OPT_STR, "")  //  rocksdb write ahead log file, put it to fast device will benifit wrtie performance
 OPTION(rocksdb_disableDataSync, OPT_BOOL, false) // if true, data files are not synced to stable storage
 OPTION(rocksdb_disableWAL, OPT_BOOL, false)  // if true, writes will not first go to the write ahead log
+OPTION(rocksdb_stats_dump_period_sec, OPT_INT, 5)  // RocksDB will dump stats to log every interval.
 
 
 /**
