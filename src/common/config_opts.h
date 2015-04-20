@@ -730,7 +730,9 @@ OPTION(rocksdb_disableDataSync, OPT_BOOL, false) // if true, data files are not 
 OPTION(rocksdb_disableWAL, OPT_BOOL, false)  // if true, writes will not first go to the write ahead log
 OPTION(rocksdb_stats_dump_period_sec, OPT_INT, 5)  // RocksDB will dump stats to log every interval.
 
-
+OPTION(rocksdb_WAL_ttl_seconds, OPT_U64, 0)
+OPTION(rocksdb_WAL_size_limit_MB, OPT_U64, 0)
+OPTION(rocksdb_max_total_wal_size, OPT_U64, 0)
 /**
  * osd_client_op_priority and osd_recovery_op_priority adjust the relative
  * priority of client io vs recovery io.
