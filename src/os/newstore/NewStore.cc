@@ -987,7 +987,11 @@ int NewStore::umount()
   dout(20) << __func__ << " stopping fsync_wq" << dendl;
   fsync_tp.stop();
   dout(20) << __func__ << " stopping aio thread" << dendl;
-  _aio_stop();
+#ifdef HAVE_LIBAIO
+  if (g_conf->newstore_aio) {
+    _aio_stop();
+  }
+#endif
   dout(20) << __func__ << " stopping kv thread" << dendl;
   _kv_stop();
   dout(20) << __func__ << " draining finisher" << dendl;
