@@ -2161,6 +2161,7 @@ void NewStore::_txc_finish_fsync(TransContext *txc)
   }
   do {
     _txc_submit_kv(&*p++);
+    _txc_finish_kv(&*p++);
   } while (p != osr->q.end() &&
 	   p->state == TransContext::STATE_FSYNC_DONE);
 }
@@ -2215,9 +2216,8 @@ void NewStore::_txc_submit_kv(TransContext *txc)
   txc->state = TransContext::STATE_KV_QUEUED;
 
   Mutex::Locker l(kv_lock);
-  db->submit_transaction(txc->t);
-  kv_queue.push_back(txc);
-  kv_cond.SignalOne();
+  db->submit_transaction_sync(txc->t);
+  //the submit_transcation is synchronized
 }
 
 struct C_ApplyWAL : public Context {
