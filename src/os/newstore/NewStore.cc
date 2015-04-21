@@ -2366,11 +2366,23 @@ void NewStore::_kv_sync_thread()
       kv_committing.swap(kv_queue);
       utime_t start = ceph_clock_now(NULL);
       kv_lock.Unlock();
-      db->submit_transaction_sync(db->get_transaction());
+
+      KeyValueDB::Transaction cleanup = db->get_transaction();
+      for (deque<TransContext*>::iterator it = kv_committing.begin();
+	    it != kv_committing.end();
+	    it++) {
+	TransContext *txc = *it;
+	string key;
+	int seq = txc->wal_txn->seq;
+	get_wal_key(seq, &key);
+	cleanup->rmkey(PREFIX_WAL, key);
+      }
+      db->submit_transaction_sync(cleanup);
       utime_t finish = ceph_clock_now(NULL);
       utime_t dur = finish - start;
       dout(20) << __func__ << " committed " << kv_committing.size()
 	       << " in " << dur << dendl;
+
       while (!kv_committing.empty()) {
 	TransContext *txc = kv_committing.front();
 	if (txc->state == TransContext::STATE_WAL_CLEANUP) {
@@ -2379,7 +2391,9 @@ void NewStore::_kv_sync_thread()
 	  txc->osr->qlock.Unlock();
 	  _txc_finish_apply(txc);
 	} else if (txc->state == TransContext::STATE_KV_QUEUED) {
-	  _txc_finish_kv(txc);
+	  derr << __func__ << " DEAD PATH, should not reach here" << txc->get_state_name()
+	       << dendl;
+	  assert(0);
 	} else {
 	  derr << __func__ << " unexpected txc state " << txc->get_state_name()
 	       << dendl;
@@ -2419,15 +2433,11 @@ int NewStore::_apply_wal_transaction(TransContext *txc)
 
   string key;
   get_wal_key(wt.seq, &key);
-  KeyValueDB::Transaction cleanup = db->get_transaction();
-  cleanup->rmkey(PREFIX_WAL, key);
-
   txc->osr->qlock.Lock();
   txc->state = TransContext::STATE_WAL_CLEANUP;
   txc->osr->qlock.Unlock();
 
   Mutex::Locker l(kv_lock);
-  db->submit_transaction(cleanup);
   kv_queue.push_back(txc);
   kv_cond.SignalOne();
   return 0;
