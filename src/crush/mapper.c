@@ -439,7 +439,7 @@ static int crush_choose_firstn(const struct crush_map *map,
 		tries, recurse_tries, local_retries, local_fallback_retries,
 		parent_r);
 
-	for (rep = outpos; rep < numrep && count > 0 ; rep++) {
+	for (rep = 0; rep < numrep && count > 0; rep++) {
 		/* keep trying until we get a non-out, non-colliding item */
 		ftotal = 0;
 		skip_rep = 0;
@@ -512,7 +512,7 @@ static int crush_choose_firstn(const struct crush_map *map,
 						if (crush_choose_firstn(map,
 							 map->buckets[-1-item],
 							 weight, weight_max,
-							 x, outpos+1, 0,
+							 x, 1, 0,
 							 out2, outpos, count,
 							 recurse_tries, 0,
 							 local_retries,
