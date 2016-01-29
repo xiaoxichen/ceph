@@ -6130,7 +6130,10 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
 
   } else if (prefix == "osd unpause") {
     return prepare_unset_flag(op, CEPH_OSDMAP_PAUSERD | CEPH_OSDMAP_PAUSEWR);
-
+  } else if (prefix == "osd set-subtree") {
+    assert(0 == "TO BE DONE");
+  } else if (prefix == "osd unset-subtree") {
+    assert(0 == "TO BE DONE");
   } else if (prefix == "osd set") {
     string key;
     cmd_getval(g_ceph_context, cmdmap, "key", key);

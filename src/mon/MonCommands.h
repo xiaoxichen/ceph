@@ -597,6 +597,14 @@ COMMAND("osd set " \
 COMMAND("osd unset " \
 	"name=key,type=CephChoices,strings=full|pause|noup|nodown|noout|noin|nobackfill|norebalance|norecover|noscrub|nodeep-scrub|notieragent|sortbitwise", \
 	"unset <key>", "osd", "rw", "cli,rest")
+COMMAND("osd set-subtree " \
+	"name=entry,type=CephString,goodchars=[A-Za-z0-9-_.] " \
+	"name=key,type=CephChoices,strings=noup|nodown|noout|noin", \
+	"set all leaf items beneath <name> with <key>", "osd", "rw", "cli,rest")
+COMMAND("osd unset-subtree " \
+	"name=entry,type=CephString,goodchars=[A-Za-z0-9-_.] " \
+	"name=key,type=CephChoices,strings=noup|nodown|noout|noin", \
+	"unset all leaf items beneath <name> with <key>", "osd", "rw", "cli,rest")
 COMMAND("osd cluster_snap", "take cluster snapshot (disabled)", \
 	"osd", "r", "")
 COMMAND("osd down " \
