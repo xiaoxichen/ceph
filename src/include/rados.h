@@ -114,6 +114,10 @@ struct ceph_eversion {
 #define CEPH_OSD_UP      (1<<1)
 #define CEPH_OSD_AUTOOUT (1<<2)  /* osd was automatically marked out */
 #define CEPH_OSD_NEW     (1<<3)  /* osd is new, never marked in */
+#define CEPH_OSD_NOUP     (1<<4)  /* osd cannot be marked up */
+#define CEPH_OSD_NODOWN     (1<<5)  /* osd cannot be marked down */
+#define CEPH_OSD_NOIN     (1<<6)  /* osd cannot be marked in */
+#define CEPH_OSD_NOOUT     (1<<7)  /* osd cannot be marked out */
 
 extern const char *ceph_osd_state_name(int s);
 

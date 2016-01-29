@@ -37,6 +37,14 @@ const char *ceph_osd_state_name(int s)
 		return "autoout";
 	case CEPH_OSD_NEW:
 		return "new";
+	case CEPH_OSD_NOUP:
+		return "noup";
+	case CEPH_OSD_NODOWN:
+		return "nodown";
+	case CEPH_OSD_NOIN:
+		return "noin";
+	case CEPH_OSD_NOOUT:
+		return "noout";
 	default:
 		return "???";
 	}	

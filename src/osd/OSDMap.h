@@ -454,6 +454,22 @@ public:
     return !is_out(osd);
   }
 
+  bool has_noup_flag(int osd) const {
+    return exists(osd) && (osd_state[osd] & CEPH_OSD_NOUP;
+  }
+
+  bool has_nodown_flag(int osd) const {
+    return exists(osd) && (osd_state[osd] & CEPH_OSD_NODOWN);
+  }
+
+  bool has_noin_flag(int osd) const {
+    return exists(osd) && (osd_state[osd] & CEPH_OSD_NOIN);
+  }
+
+  bool has_noout_flag(int osd) const {
+    return exists(osd) && (osd_state[osd] & CEPH_OSD_OUT);
+  }
+
   /**
    * check if an entire crush subtre is down
    */
