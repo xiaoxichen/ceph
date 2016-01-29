@@ -4720,6 +4720,33 @@ int OSDMonitor::prepare_new_pool(string& name, uint64_t auid,
   return 0;
 }
 
+void OSDMonitor::subtree_set_osd_state(int crush_id, int flag)
+{
+  dout(10) << "Set flag " << ceph_osd_state_name(flag) << " to crush subtree " << crush_id << dendl;
+
+  list<int> children;
+  osdmap.crush->get_children(crush_id, &children);
+  for (list<int>::iterator p = children.begin(); p != children.end(); ++p) {
+    int id = *p;
+    if (id >= 0) {
+      pending_inc.new_state[id] |= flag;
+    } else {
+      subtree_set_osd_state(id, flag);
+    }
+  }
+}
+
+bool OSDMonitor::prepare_subtree_set(MonOpRequestRef op, int crush_id, int flag)
+{
+  op->mark_osdmon_event(__func__);
+  ostringstream ss;
+  subtree_set_osd_state(crush_id, flag);
+  ss << "set flag " << ceph_osd_state_name(flag) << " to crush subtree " << crush_id;
+  wait_for_finished_proposal(op, new Monitor::C_Command(mon, op, 0, ss.str(),
+						    get_last_committed() + 1));
+  return true;
+}
+
 bool OSDMonitor::prepare_set_flag(MonOpRequestRef op, int flag)
 {
   op->mark_osdmon_event(__func__);
@@ -6131,7 +6158,34 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
   } else if (prefix == "osd unpause") {
     return prepare_unset_flag(op, CEPH_OSDMAP_PAUSERD | CEPH_OSDMAP_PAUSEWR);
   } else if (prefix == "osd set-subtree") {
-    assert(0 == "TO BE DONE");
+    string name,key;
+    cmd_getval(g_ceph_context, cmdmap, "entry", name);
+    cmd_getval(g_ceph_context, cmdmap, "key", key);
+    ss << "set subtree " << name << " with " << key << "\n";
+
+    CrushWrapper newcrush;
+    _get_pending_crush(newcrush);
+
+    if (!newcrush.name_exists(name)) {
+      err = -ENOENT;
+      ss << "item " << name << " does not exist";
+      goto reply;
+    }
+    int id = newcrush.get_item_id(name);
+
+    if (key == "noup")
+      return prepare_subtree_set(op, id, CEPH_OSD_NOUP);
+    else if (key == "nodown")
+      return prepare_subtree_set(op, id, CEPH_OSD_NODOWN);
+    else if (key == "noin")
+      return prepare_subtree_set(op, id, CEPH_OSD_NOIN);
+    else if (key == "noout")
+      return prepare_subtree_set(op, id, CEPH_OSD_NOOUT);
+    else {
+      ss << "unrecognized flag '" << key << "'";
+      err = -EINVAL;
+    }
+
   } else if (prefix == "osd unset-subtree") {
     assert(0 == "TO BE DONE");
   } else if (prefix == "osd set") {

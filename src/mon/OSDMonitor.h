@@ -145,6 +145,7 @@ private:
   bool _have_pending_crush();
   CrushWrapper &_get_stable_crush();
   void _get_pending_crush(CrushWrapper& newcrush);
+  void subtree_set_osd_state(int id, int flag);
 
   enum FastReadType {
     FAST_READ_OFF,
@@ -322,6 +323,7 @@ private:
   void get_pools_health(list<pair<health_status_t,string> >& summary,
                         list<pair<health_status_t,string> > *detail) const;
 
+  bool prepare_subtree_set(MonOpRequestRef op, int id, int flag);
   bool prepare_set_flag(MonOpRequestRef op, int flag);
   bool prepare_unset_flag(MonOpRequestRef op, int flag);
 
