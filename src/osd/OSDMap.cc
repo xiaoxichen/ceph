@@ -2271,6 +2271,7 @@ void OSDMap::dump(Formatter *f) const
       f->dump_stream("uuid") << get_uuid(i);
       f->dump_int("up", is_up(i));
       f->dump_int("in", is_in(i));
+      f->dump_string("flags", get_osd_flag_string(i));
       f->dump_float("weight", get_weightf(i));
       f->dump_float("primary_affinity", get_primary_affinityf(i));
       get_info(i).dump(f);
@@ -2390,6 +2391,23 @@ string OSDMap::get_flag_string(unsigned f)
   return s;
 }
 
+string OSDMap::get_osd_flag_string(unsigned osdid) const
+{
+  state = get_state(osdid);
+  string s;
+  if (state& CEPH_OSD_NOUP)
+    s = s + "," + ceph_osd_state_name(CEPH_OSD_NOUP);
+  if (state & CEPH_OSD_NODOWN)
+    s = s + "," + ceph_osd_state_name(CEPH_OSD_NODOWN);
+  if (state& CEPH_OSD_NOIN)
+    s = s + "," + ceph_osd_state_name(CEPH_OSD_NOIN);
+  if (state & CEPH_OSD_NOOUT)
+    s = s + "," + ceph_osd_state_name(CEPH_OSD_NOOUT);
+  if (s.length())
+    s.erase(0, 1);
+  return s;
+}
+
 string OSDMap::get_flag_string() const
 {
   return get_flag_string(flags);
@@ -2489,6 +2507,7 @@ public:
     tbl->define_column("WEIGHT", TextTable::LEFT, TextTable::RIGHT);
     tbl->define_column("TYPE NAME", TextTable::LEFT, TextTable::LEFT);
     tbl->define_column("UP/DOWN", TextTable::LEFT, TextTable::RIGHT);
+    tbl->define_column("FLAGs", TextTable::LEFT, TextTable::RIGHT);
     tbl->define_column("REWEIGHT", TextTable::LEFT, TextTable::RIGHT);
     tbl->define_column("PRIMARY-AFFINITY", TextTable::LEFT, TextTable::RIGHT);
 
@@ -2523,6 +2542,7 @@ protected:
 	     << 0;
       } else {
 	*tbl << (osdmap->is_up(qi.id) ? "up" : "down")
+	     << (osdmap->get_osd_flag_string(qi.id))
 	     << weightf_t(osdmap->get_weightf(qi.id))
 	     << weightf_t(osdmap->get_primary_affinityf(qi.id));
       }
@@ -2560,6 +2580,7 @@ protected:
     {
       f->dump_unsigned("exists", (int)osdmap->exists(qi.id));
       f->dump_string("status", osdmap->is_up(qi.id) ? "up" : "down");
+      f->dump_string("flags", osdmap->get_osd_flag_string(qi.id));
       f->dump_float("reweight", osdmap->get_weightf(qi.id));
       f->dump_float("primary_affinity", osdmap->get_primary_affinityf(qi.id));
     }
