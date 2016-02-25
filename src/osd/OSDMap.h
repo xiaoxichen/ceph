@@ -455,7 +455,7 @@ public:
   }
 
   bool has_noup_flag(int osd) const {
-    return exists(osd) && (osd_state[osd] & CEPH_OSD_NOUP;
+    return exists(osd) && (osd_state[osd] & CEPH_OSD_NOUP);
   }
 
   bool has_nodown_flag(int osd) const {
@@ -884,6 +884,7 @@ public:
   void print_tree(Formatter *f, ostream *out) const;
 
   string get_flag_string() const;
+  string get_osd_flag_string(unsigned osdid) const;
   static string get_flag_string(unsigned flags);
   static void dump_erasure_code_profiles(const map<string,map<string,string> > &profiles,
 					 Formatter *f);

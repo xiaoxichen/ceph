@@ -2393,7 +2393,7 @@ string OSDMap::get_flag_string(unsigned f)
 
 string OSDMap::get_osd_flag_string(unsigned osdid) const
 {
-  state = get_state(osdid);
+  int state = get_state(osdid);
   string s;
   if (state& CEPH_OSD_NOUP)
     s = s + "," + ceph_osd_state_name(CEPH_OSD_NOUP);
