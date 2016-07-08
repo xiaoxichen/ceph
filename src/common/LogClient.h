@@ -233,6 +233,8 @@ public:
     channels.clear();
   }
 
+  uint64_t get_next_seq();
+  const entity_inst_t& get_myinst();
   version_t queue(LogEntry &entry);
 
 private:
@@ -244,8 +246,8 @@ private:
   MonMap *monmap;
   bool is_mon;
   Mutex log_lock;
-  version_t last_log_sent;
-  version_t last_log;
+  std::atomic<uint64_t> last_log_sent;
+  std::atomic<uint64_t> last_log;
   std::deque<LogEntry> log_queue;
 
   std::map<std::string, LogChannelRef> channels;
